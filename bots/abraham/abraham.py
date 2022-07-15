@@ -124,8 +124,6 @@ class Abraham(commands.Cog):
             await ctx.respond("This command is not available in this channel.")
             return
 
-        await ctx.defer()
-
         if settings.CONTENT_FILTER_ON:
             if not OpenAIGPT3LanguageModel.content_safe(text_input):
                 await ctx.respond(
@@ -156,17 +154,13 @@ class Abraham(commands.Cog):
             },
         }
 
-        start_bot_message = f"Prompt by <@!{ctx.author.id}>: **{text_input}**\n\n"
-        bot_message = await ctx.channel.send(start_bot_message)
+        await ctx.respond(f"Prompt by <@!{ctx.author.id}>: **{text_input}**\n\n")
 
         await generation_loop(
-            settings.EDEN_GATEWAY_URL,
-            settings.EDEN_MINIO_URL,
-            config,
-            bot_message,
-            bot_message,
-            ctx,
-            self.output_dir,
+            gateway_url=settings.EDEN_GATEWAY_URL,
+            minio_url=settings.EDEN_MINIO_URL,
+            interaction_message=ctx.message,
+            config=config,
             refresh_interval=2,
         )
 
