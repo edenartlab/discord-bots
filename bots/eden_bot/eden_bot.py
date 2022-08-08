@@ -12,8 +12,9 @@ from marsbots.discord_utils import replace_bot_mention
 from marsbots.discord_utils import replace_mentions_with_usernames
 from marsbots.language_models import OpenAIGPT3LanguageModel
 from marsbots_eden.eden import generation_loop
-from marsbots_eden.eden import SourceSettings
-from marsbots_eden.eden import StableDiffusionSettings
+from marsbots_eden.models import SourceSettings
+from marsbots_eden.models import StableDiffusionDimensions
+from marsbots_eden.models import StableDiffusionSettings
 
 from . import config
 from . import settings
@@ -52,9 +53,18 @@ class EdenCog(commands.Cog):
         aspect_ratio: discord.Option(
             str,
             choices=[
-                discord.OptionChoice(name="square", value="square"),
-                discord.OptionChoice(name="landscape", value="landscape"),
-                discord.OptionChoice(name="portrait", value="portrait"),
+                discord.OptionChoice(
+                    name="square",
+                    value=StableDiffusionDimensions.SQUARE,
+                ),
+                discord.OptionChoice(
+                    name="landscape",
+                    value=StableDiffusionDimensions.LANDSCAPE,
+                ),
+                discord.OptionChoice(
+                    name="portrait",
+                    value=StableDiffusionDimensions.PORTRAIT,
+                ),
             ],
             required=False,
             default="square",
@@ -82,25 +92,14 @@ class EdenCog(commands.Cog):
             channel_name=str(ctx.channel),
         )
 
-        if aspect_ratio == "square":
-            width, height = 512, 512
-        elif aspect_ratio == "landscape":
-            width, height = 640, 384
-        elif aspect_ratio == "portrait":
-            width, height = 384, 640
-
-        steps = 166
-        plms = True
-        upscale = False
+        width, height = (
+            StableDiffusionDimensions.value[0],
+            StableDiffusionDimensions.value[1],
+        )
 
         config = StableDiffusionSettings(
-            text_input=text_input,
             width=width,
             height=height,
-            ddim_steps=steps,
-            plms=plms,
-            C=4,
-            f=4 if upscale else 8,
         )
 
         start_bot_message = f"**{text_input}** - <@!{ctx.author.id}>\n\n"
