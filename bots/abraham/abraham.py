@@ -13,17 +13,23 @@ from marsbots.language_models import complete_text
 from marsbots.language_models import OpenAIGPT3LanguageModel
 from marsbots.models import ChatMessage
 from marsbots.util import hex_to_rgb_float
-from marsbots_eden import EdenClipXSettings
-from marsbots_eden import generation_loop
-from marsbots_eden import SourceSettings
+from marsbots_eden.eden import EdenClipXSettings
+from marsbots_eden.eden import generation_loop
+from marsbots_eden.eden import SourceSettings
 
 from . import channels
 from . import prompts
 from . import settings
+from . import config
 
 gateway_url = os.getenv("GATEWAY_URL")
 minio_url = "http://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
 
+CONFIG = config.config_dict[config.stage]
+ALLOWED_GUILDS = CONFIG["guilds"]
+ALLOWED_CHANNELS = CONFIG["allowed_channels"]
+ALLOWED_RANDOM_REPLY_CHANNELS = CONFIG["allowed_random_reply_channels"]
+ALLOWED_DM_USERS = CONFIG["allowed_dm_users"]
 
 class Abraham(commands.Cog):
     def __init__(self, bot: commands.bot) -> None:
@@ -35,7 +41,7 @@ class Abraham(commands.Cog):
             presence_penalty=settings.GPT3_PRESENCE_PENALTY,
         )
 
-    @commands.slash_command(guild_ids=settings.GUILD_IDS)
+    @commands.slash_command(guild_ids=ALLOWED_GUILDS)
     async def complete(
         self,
         ctx,
@@ -60,7 +66,7 @@ class Abraham(commands.Cog):
             await ctx.respond("Error completing text - " + str(e))
 
     @commands.slash_command(
-        guild_ids=settings.GUILD_IDS,
+        guild_ids=ALLOWED_GUILDS,
     )
     async def create(
         self,
@@ -104,14 +110,14 @@ class Abraham(commands.Cog):
             await ctx.respond("This command is not available in this channel.")
             return
 
-        await ctx.respond("Starting to create.")
-
         if settings.CONTENT_FILTER_ON:
             if not OpenAIGPT3LanguageModel.content_safe(text_input):
                 await ctx.respond(
                     f"Content filter triggered, <@!{ctx.author.id}>. Please don't make me draw that. If you think it was a mistake, modify your prompt slightly and try again.",
                 )
                 return
+
+        await ctx.respond("Starting to create.")
 
         source = SourceSettings(
             origin="discord",
@@ -140,11 +146,9 @@ class Abraham(commands.Cog):
         await generation_loop(
             gateway_url,
             minio_url,
+            bot_message,
             source,
             config,
-            bot_message,
-            bot_message,
-            ctx,
             refresh_interval=2,
         )
 
@@ -152,14 +156,14 @@ class Abraham(commands.Cog):
     async def on_message(self, message: discord.Message) -> None:
         try:
             if (
-                message.channel.id not in channels.ALLOWED_CHANNELS
+                message.channel.id not in ALLOWED_CHANNELS
                 or message.author.id == self.bot.user.id
                 or message.author.bot
             ):
                 return
 
             trigger_reply = is_mentioned(message, self.bot.user) or (
-                message.channel.id in channels.ALLOWED_CHANNELS_RANDOM_REPLY
+                message.channel.id in ALLOWED_RANDOM_REPLY_CHANNELS
                 and random.random() < channels.RANDOM_REPLY_PROBABILITY
             )
 
@@ -253,7 +257,7 @@ class Abraham(commands.Cog):
             return completion
 
     def perm_check(self, ctx):
-        if ctx.channel.id not in channels.ALLOWED_CHANNELS:
+        if ctx.channel.id not in ALLOWED_CHANNELS:
             return False
         return True
 

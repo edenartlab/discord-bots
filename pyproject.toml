@@ -8,8 +8,6 @@ authors = ["Jonathan Miller <jon@jmill.dev>"]
 python = "^3.9"
 supervisor = "^4.2.4"
 superfsmon = "^1.2.1"
-marsbots = { git = "https://github.com/mars-college/marsbots_core.git", branch = "main" }
-marsbots-eden = { git = "https://github.com/abraham-ai/marsbots-eden.git", branch = "main" }
 aleph-alpha-client = "^1.7.1"
 
 [tool.poetry.dev-dependencies]
