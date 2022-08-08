@@ -95,6 +95,7 @@ def start(
     for path in cog_paths:
         res = bot.load_extension(path)
         if type(res[path]) != bool:
+            print(res)
             raise Exception(res[path])
     bot.run(os.getenv(bot.metadata.token_env))
 

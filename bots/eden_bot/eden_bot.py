@@ -11,19 +11,24 @@ from marsbots.discord_utils import is_mentioned
 from marsbots.discord_utils import replace_bot_mention
 from marsbots.discord_utils import replace_mentions_with_usernames
 from marsbots.language_models import OpenAIGPT3LanguageModel
-from marsbots_eden import generation_loop
-from marsbots_eden import SourceSettings
-from marsbots_eden import StableDiffusionSettings
+from marsbots_eden.eden import generation_loop
+from marsbots_eden.eden import SourceSettings
+from marsbots_eden.eden import StableDiffusionSettings
 
-from . import channels
+from . import config
 from . import settings
+
 
 minio_url = "http://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
 gateway_url = os.getenv("GATEWAY_URL")
 magma_token = os.getenv("MAGMA_API_KEY")
 
+CONFIG = config.config_dict[config.stage]
+ALLOWED_GUILDS = CONFIG["guilds"]
+ALLOWED_CHANNELS = CONFIG["allowed_channels"]
 
-class Eden_Bot(commands.Cog):
+
+class EdenCog(commands.Cog):
     def __init__(self, bot: commands.bot) -> None:
         self.bot = bot
         self.language_model = OpenAIGPT3LanguageModel(
@@ -38,7 +43,7 @@ class Eden_Bot(commands.Cog):
         )
 
     @commands.slash_command(
-        guild_ids=settings.GUILD_IDS,
+        guild_ids=ALLOWED_GUILDS,
     )
     async def dream(
         self,
@@ -59,9 +64,6 @@ class Eden_Bot(commands.Cog):
         if not self.perm_check(ctx):
             await ctx.respond("This command is not available in this channel.")
             return
-
-        # await ctx.defer()
-        await ctx.respond("Starting to dream.")
 
         if settings.CONTENT_FILTER_ON:
             if not OpenAIGPT3LanguageModel.content_safe(text_input):
@@ -88,7 +90,7 @@ class Eden_Bot(commands.Cog):
             width, height = 384, 640
 
         steps = 166
-        planguage_modelss = True
+        plms = True
         upscale = False
 
         config = StableDiffusionSettings(
@@ -96,22 +98,21 @@ class Eden_Bot(commands.Cog):
             width=width,
             height=height,
             ddim_steps=steps,
-            planguage_modelss=planguage_modelss,
+            plms=plms,
             C=4,
             f=4 if upscale else 8,
         )
 
-        start_bot_message = f"Prompt by <@!{ctx.author.id}>: **{text_input}**\n\n"
-        bot_message = await ctx.channel.send(start_bot_message)
+        start_bot_message = f"**{text_input}** - <@!{ctx.author.id}>\n\n"
+        await ctx.respond(start_bot_message)
 
         await generation_loop(
             gateway_url,
             minio_url,
+            ctx,
+            start_bot_message,
             source,
             config,
-            bot_message,
-            bot_message,
-            ctx,
             refresh_interval=2,
         )
 
@@ -119,7 +120,7 @@ class Eden_Bot(commands.Cog):
     async def on_message(self, message: discord.Message) -> None:
         try:
             if (
-                message.channel.id not in channels.ALLOWED_CHANNELS
+                message.channel.id not in ALLOWED_CHANNELS
                 or message.author.id == self.bot.user.id
                 or message.author.bot
             ):
@@ -159,10 +160,10 @@ class Eden_Bot(commands.Cog):
         return message_content
 
     def perm_check(self, ctx):
-        if ctx.channel.id not in channels.ALLOWED_CHANNELS:
+        if ctx.channel.id not in ALLOWED_CHANNELS:
             return False
         return True
 
 
 def setup(bot: commands.Bot) -> None:
-    bot.add_cog(Eden_Bot(bot))
+    bot.add_cog(EdenCog(bot))
