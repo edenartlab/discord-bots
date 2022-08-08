@@ -18,9 +18,9 @@ from marsbots_eden.eden import generation_loop
 from marsbots_eden.eden import SourceSettings
 
 from . import channels
+from . import config
 from . import prompts
 from . import settings
-from . import config
 
 gateway_url = os.getenv("GATEWAY_URL")
 minio_url = "http://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
@@ -30,6 +30,7 @@ ALLOWED_GUILDS = CONFIG["guilds"]
 ALLOWED_CHANNELS = CONFIG["allowed_channels"]
 ALLOWED_RANDOM_REPLY_CHANNELS = CONFIG["allowed_random_reply_channels"]
 ALLOWED_DM_USERS = CONFIG["allowed_dm_users"]
+
 
 class Abraham(commands.Cog):
     def __init__(self, bot: commands.bot) -> None:
@@ -117,8 +118,6 @@ class Abraham(commands.Cog):
                 )
                 return
 
-        await ctx.respond("Starting to create.")
-
         source = SourceSettings(
             origin="discord",
             author=int(ctx.author.id),
@@ -140,13 +139,14 @@ class Abraham(commands.Cog):
             height=height,
         )
 
-        start_bot_message = f"Prompt by <@!{ctx.author.id}>: **{text_input}**\n\n"
-        bot_message = await ctx.channel.send(start_bot_message)
+        start_bot_message = f"**{text_input}** - <@!{ctx.author.id}>\n\n"
+        await ctx.respond(start_bot_message)
 
         await generation_loop(
             gateway_url,
             minio_url,
-            bot_message,
+            ctx,
+            start_bot_message,
             source,
             config,
             refresh_interval=2,
