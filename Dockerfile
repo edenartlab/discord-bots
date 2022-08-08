@@ -8,10 +8,10 @@ COPY requirements.txt requirements.txt
 COPY bot.py bot.py
 COPY entrypoint.sh entrypoint.sh
 
-RUN pip install -r requirements.txt
+RUN apt-get update
+RUN apt-get install -y git libgl1-mesa-glx
 
-RUN apt-get update && apt-get install -y nodejs npm
-RUN npm install -g pm2@latest
+RUN pip install -r requirements.txt
 
 RUN chmod +x entrypoint.sh
 RUN cp entrypoint.sh /tmp/entrypoint.sh

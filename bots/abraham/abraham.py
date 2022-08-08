@@ -1,8 +1,6 @@
 import logging
-from dataclasses import dataclass
-from dataclasses import field
-from pathlib import Path
-from typing import List
+import os
+import random
 
 import discord
 from discord.ext import commands
@@ -15,45 +13,27 @@ from marsbots.language_models import complete_text
 from marsbots.language_models import OpenAIGPT3LanguageModel
 from marsbots.models import ChatMessage
 from marsbots.util import hex_to_rgb_float
-from marsbots_eden.eden import generation_loop
+from marsbots_eden import EdenClipXSettings
+from marsbots_eden import generation_loop
+from marsbots_eden import SourceSettings
 
 from . import channels
 from . import prompts
 from . import settings
 
-
-@dataclass
-class EdenClipXSettings:
-    text_input: str
-    image_url: str = ""
-    step_multiplier: float = 1.0
-    color_target_pixel_fraction: float = 0.75
-    color_loss_f: float = 0.0
-    color_rgb_target: tuple[float] = (0.0, 0.0, 0.0)
-    image_weight: float = 0.35
-    n_permuted_prompts_to_add: int = -1
-    width: int = 0
-    height: int = 0
-    num_octaves: int = 3
-    octave_scale: float = 2.0
-    clip_model_options: List = field(
-        default_factory=lambda: [["ViT-B/32", "ViT-B/16", "RN50"]],
-    )
-    num_iterations: tuple[int] = (100, 200, 300)
+gateway_url = os.getenv("GATEWAY_URL")
+minio_url = "http://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
 
 
 class Abraham(commands.Cog):
     def __init__(self, bot: commands.bot) -> None:
         self.bot = bot
         self.language_model = OpenAIGPT3LanguageModel(
-            api_key=settings.LM_OPENAI_API_KEY,
             engine=settings.GPT3_ENGINE,
             temperature=settings.GPT3_TEMPERATURE,
             frequency_penalty=settings.GPT3_FREQUENCY_PENALTY,
             presence_penalty=settings.GPT3_PRESENCE_PENALTY,
         )
-        self.output_dir = Path(__file__).parent.parent / "_output"
-        self.output_dir.mkdir(exist_ok=True)
 
     @commands.slash_command(guild_ids=settings.GUILD_IDS)
     async def complete(
@@ -116,20 +96,32 @@ class Abraham(commands.Cog):
             required=False,
             default=-1,
         ),
-        width: discord.Option(str, description="Width", required=False, default=0),
-        height: discord.Option(str, description="Height", required=False, default=0),
+        width: discord.Option(str, description="Width", required=False, default=768),
+        height: discord.Option(str, description="Height", required=False, default=512),
     ):
 
         if not self.perm_check(ctx):
             await ctx.respond("This command is not available in this channel.")
             return
 
+        await ctx.respond("Starting to create.")
+
         if settings.CONTENT_FILTER_ON:
             if not OpenAIGPT3LanguageModel.content_safe(text_input):
                 await ctx.respond(
-                    f"Please have some decency and don't make me draw that, <@!{ctx.author.id}>.",
+                    f"Content filter triggered, <@!{ctx.author.id}>. Please don't make me draw that. If you think it was a mistake, modify your prompt slightly and try again.",
                 )
                 return
+
+        source = SourceSettings(
+            origin="discord",
+            author=int(ctx.author.id),
+            author_name=str(ctx.author),
+            guild=int(ctx.guild.id),
+            guild_name=str(ctx.guild),
+            channel=int(ctx.channel.id),
+            channel_name=str(ctx.channel),
+        )
 
         config = EdenClipXSettings(
             text_input=text_input,
@@ -140,27 +132,19 @@ class Abraham(commands.Cog):
             color_target_pixel_fraction=color_target_pixel_fraction,
             width=width,
             height=height,
-        ).__dict__
+        )
 
-        config["source"] = {
-            "origin": "discord",
-            "author": str(ctx.author.id),
-            "guild": str(ctx.guild.id),
-            "channel": str(ctx.channel.id),
-            "names": {
-                "author": str(ctx.author),
-                "guild": str(ctx.guild),
-                "channel": str(ctx.channel),
-            },
-        }
-
-        await ctx.respond(f"Prompt by <@!{ctx.author.id}>: **{text_input}**\n\n")
+        start_bot_message = f"Prompt by <@!{ctx.author.id}>: **{text_input}**\n\n"
+        bot_message = await ctx.channel.send(start_bot_message)
 
         await generation_loop(
-            gateway_url=settings.EDEN_GATEWAY_URL,
-            minio_url=settings.EDEN_MINIO_URL,
-            interaction_message=ctx.message,
-            config=config,
+            gateway_url,
+            minio_url,
+            source,
+            config,
+            bot_message,
+            bot_message,
+            ctx,
             refresh_interval=2,
         )
 
@@ -168,10 +152,18 @@ class Abraham(commands.Cog):
     async def on_message(self, message: discord.Message) -> None:
         try:
             if (
-                (is_mentioned(message, self.bot.user))
-                and message.channel.id in channels.ALLOWED_CHANNELS
-                and message.author.id != self.bot.user.id
-            ) and not message.author.bot:
+                message.channel.id not in channels.ALLOWED_CHANNELS
+                or message.author.id == self.bot.user.id
+                or message.author.bot
+            ):
+                return
+
+            trigger_reply = is_mentioned(message, self.bot.user) or (
+                message.channel.id in channels.ALLOWED_CHANNELS_RANDOM_REPLY
+                and random.random() < channels.RANDOM_REPLY_PROBABILITY
+            )
+
+            if trigger_reply:
                 ctx = await self.bot.get_context(message)
                 async with ctx.channel.typing():
                     prompt = await self.format_prompt(ctx, message)
