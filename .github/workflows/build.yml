@@ -115,7 +115,7 @@ jobs:
         with:
           valueFile: "apps/abraham/abraham-bots-prod-environments/values.yaml"
           updateFile: true
-          propertyPath: "$.environments[?(@.name=='${{ secrets.ENV }}')].image"
+          propertyPath: "$.image"
           value: ${{ steps.prep.outputs.tagged_image }}
           repository: abraham-ai/releases
           branch: main
