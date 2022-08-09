@@ -13,8 +13,7 @@ from marsbots.discord_utils import replace_mentions_with_usernames
 from marsbots.language_models import OpenAIGPT3LanguageModel
 from marsbots_eden.eden import generation_loop
 from marsbots_eden.models import SourceSettings
-from marsbots_eden.models import StableDiffusionDimensions
-from marsbots_eden.models import StableDiffusionSettings
+from marsbots_eden.models import StableDiffusionConfig
 
 from . import config
 from . import settings
@@ -55,19 +54,13 @@ class EdenCog(commands.Cog):
             choices=[
                 discord.OptionChoice(
                     name="square",
-                    value=StableDiffusionDimensions.SQUARE,
+                    value="512,512",
                 ),
-                discord.OptionChoice(
-                    name="landscape",
-                    value=StableDiffusionDimensions.LANDSCAPE,
-                ),
-                discord.OptionChoice(
-                    name="portrait",
-                    value=StableDiffusionDimensions.PORTRAIT,
-                ),
+                discord.OptionChoice(name="landscape", value="384,640"),
+                discord.OptionChoice(name="portrait", value="640,384"),
             ],
             required=False,
-            default="square",
+            default="512,512",
         ),
     ):
 
@@ -92,12 +85,10 @@ class EdenCog(commands.Cog):
             channel_name=str(ctx.channel),
         )
 
-        width, height = (
-            StableDiffusionDimensions.value[0],
-            StableDiffusionDimensions.value[1],
-        )
+        width, height = aspect_ratio.split(",")
 
-        config = StableDiffusionSettings(
+        config = StableDiffusionConfig(
+            text_input=text_input,
             width=width,
             height=height,
         )

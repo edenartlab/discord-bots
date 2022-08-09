@@ -3,6 +3,7 @@ import atexit
 import json
 import logging
 import os
+import traceback
 from pathlib import Path
 
 import discord
@@ -95,7 +96,16 @@ def start(
     for path in cog_paths:
         res = bot.load_extension(path)
         if type(res[path]) != bool:
-            print(res)
+            ex = res[path]
+            print(
+                "".join(
+                    traceback.format_exception(
+                        etype=type(ex),
+                        value=ex,
+                        tb=ex.__traceback__,
+                    ),
+                ),
+            )
             raise Exception(res[path])
     bot.run(os.getenv(bot.metadata.token_env))
 
