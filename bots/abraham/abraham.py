@@ -13,9 +13,9 @@ from marsbots.language_models import complete_text
 from marsbots.language_models import OpenAIGPT3LanguageModel
 from marsbots.models import ChatMessage
 from marsbots.util import hex_to_rgb_float
-from marsbots_eden.eden import EdenClipXSettings
 from marsbots_eden.eden import generation_loop
-from marsbots_eden.eden import SourceSettings
+from marsbots_eden.models import EdenClipXConfig
+from marsbots_eden.models import SourceSettings
 
 from . import channels
 from . import config
@@ -128,7 +128,7 @@ class Abraham(commands.Cog):
             channel_name=str(ctx.channel),
         )
 
-        config = EdenClipXSettings(
+        config = EdenClipXConfig(
             text_input=text_input,
             image_url=image_url,
             n_permuted_prompts_to_add=n_permuted_prompts_to_add,
