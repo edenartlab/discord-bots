@@ -103,8 +103,17 @@ class Abraham(commands.Cog):
             required=False,
             default=-1,
         ),
-        width: discord.Option(str, description="Width", required=False, default=768),
-        height: discord.Option(str, description="Height", required=False, default=512),
+        aspect_ratio: discord.Option(
+            str,
+            choices=[
+                discord.OptionChoice(name="square", value="square"),
+                discord.OptionChoice(name="landscape", value="landscape"),
+                discord.OptionChoice(name="portrait", value="portrait")
+            ],
+            required=False,
+            default="landscape"
+        ),
+        large: discord.Option(bool, description="Larger resolution, ~2.25x more pixels", required=False, default=False)
     ):
 
         if not self.perm_check(ctx):
@@ -127,6 +136,8 @@ class Abraham(commands.Cog):
             channel=int(ctx.channel.id),
             channel_name=str(ctx.channel),
         )
+
+        width, height = self.get_dimensions(aspect_ratio, large)
 
         config = EdenClipXConfig(
             text_input=text_input,
@@ -164,7 +175,7 @@ class Abraham(commands.Cog):
 
             trigger_reply = is_mentioned(message, self.bot.user) or (
                 message.channel.id in ALLOWED_RANDOM_REPLY_CHANNELS
-                and random.random() < channels.RANDOM_REPLY_PROBABILITY
+                and random.random() < settings.RANDOM_REPLY_PROBABILITY
             )
 
             if trigger_reply:
@@ -186,10 +197,7 @@ class Abraham(commands.Cog):
 
     def message_preprocessor(self, message: discord.Message) -> str:
         message_content = replace_bot_mention(message.content, only_first=True)
-        message_content = replace_mentions_with_usernames(
-            message_content,
-            message.mentions,
-        )
+        message_content = replace_mentions_with_usernames(message_content, message.mentions)
         message_content = message_content.strip()
         return message_content
 
@@ -255,6 +263,21 @@ class Abraham(commands.Cog):
                 stop=["\n", "\n\n"],
             )
             return completion
+
+    def get_dimensions(self, aspect_ratio, large):
+        if aspect_ratio == 'square' and large:
+            width, height = 768, 768
+        elif aspect_ratio == 'square' and not large:
+            width, height = 512, 512
+        elif aspect_ratio == 'landscape' and large:
+            width, height = 896, 640
+        elif aspect_ratio == 'landscape' and not large:
+            width, height = 640, 384
+        elif aspect_ratio == 'portrait' and large:
+            width, height = 640, 896
+        elif aspect_ratio == 'portrait' and not large:
+            width, height = 384, 640
+        return width, height
 
     def perm_check(self, ctx):
         if ctx.channel.id not in ALLOWED_CHANNELS:
