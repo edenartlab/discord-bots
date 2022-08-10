@@ -10,7 +10,7 @@ COPY bot.py bot.py
 COPY entrypoint.sh entrypoint.sh
 
 RUN apt-get update
-RUN apt-get install -y git libgl1-mesa-glx
+RUN apt-get install -y git libgl1-mesa-glx ffmpeg
 
 RUN pip install -r requirements.txt
 
