@@ -13,7 +13,7 @@ config_dict = {
     "dev": {
         "guilds": [
             channels.GENEKOGAN_GUILD_ID,
-            channels.ABRAHAM_BOTDEV
+            channels.ABRAHAM_BOTDEV_GUILD_ID
         ],
         "allowed_channels": [
             channels.GENE_GENERAL,
