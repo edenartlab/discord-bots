@@ -11,7 +11,7 @@ stage = os.environ.get("STAGE", "dev")
 config_dict = {
     "dev": {
         "guilds": [
-            channels.ABRAHAM_BOTDEV
+            channels.ABRAHAM_BOTDEV_GUILD_ID
         ],
         "allowed_channels": [
             channels.ABRAHAM_BOTDEV_ABRAHAM
@@ -23,13 +23,8 @@ config_dict = {
     },
     "prod": {
         "guilds": [
-            channels.BRAINDROPS_GUILD_ID,
             channels.ABRAHAM_GUILD_ID,
-            channels.EYEO_GUILD_ID,
-            channels.TOKENARTNYC_GUILD_ID,
-            channels.MARS_COLLEGE_GUILD_ID,
-            channels.JMILL_GROUP_GUILD_ID,
-            channels.DEADAVATARS_GUILD_ID,
+            channels.MARS_COLLEGE_GUILD_ID
         ],
         "allowed_channels": [
             channels.GENE_GENERAL,
