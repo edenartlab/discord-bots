@@ -23,8 +23,8 @@ config_dict = {
     },
     "prod": {
         "guilds": [
-            channels.BRAINDROPS_GUILD_ID,
-            channels.ABRAHAM_GUILD_ID
+            channels.ABRAHAM_GUILD_ID,
+            channels.MARS_COLLEGE_GUILD_ID
         ],
         "allowed_channels": [
             channels.GENE_GENERAL,
