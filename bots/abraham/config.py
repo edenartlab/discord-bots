@@ -24,7 +24,9 @@ config_dict = {
     "prod": {
         "guilds": [
             channels.ABRAHAM_GUILD_ID,
-            channels.MARS_COLLEGE_GUILD_ID
+            channels.MARS_COLLEGE_GUILD_ID,
+            channels.BRAINDROPS_GUILD_ID,
+            channels.DEADAVATARS_GUILD_ID
         ],
         "allowed_channels": [
             channels.GENE_GENERAL,
