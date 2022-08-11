@@ -24,12 +24,7 @@ config_dict = {
     "prod": {
         "guilds": [
             channels.BRAINDROPS_GUILD_ID,
-            channels.ABRAHAM_GUILD_ID,
-            channels.EYEO_GUILD_ID,
-            channels.TOKENARTNYC_GUILD_ID,
-            channels.MARS_COLLEGE_GUILD_ID,
-            channels.JMILL_GROUP_GUILD_ID,
-            channels.DEADAVATARS_GUILD_ID,
+            channels.ABRAHAM_GUILD_ID
         ],
         "allowed_channels": [
             channels.GENE_GENERAL,
