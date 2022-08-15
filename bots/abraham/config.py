@@ -11,13 +11,13 @@ stage = os.environ.get("STAGE", "dev")
 config_dict = {
     "dev": {
         "guilds": [
-            channels.ABRAHAM_BOTDEV_GUILD_ID
+            channels.GENEKOGAN_GUILD_ID
         ],
         "allowed_channels": [
-            channels.ABRAHAM_BOTDEV_ABRAHAM
+            channels.GENE_GENERAL
         ],
         "allowed_random_reply_channels": [
-            channels.ABRAHAM_BOTDEV_ABRAHAM
+            channels.GENE_GENERAL
         ],
         "allowed_dm_users": []
     },
