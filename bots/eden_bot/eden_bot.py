@@ -52,17 +52,23 @@ class CreationActionButtons(discord.ui.View):
     def __init__(
         self,
         *items,
+        bot,
+        creation_sha,
         refresh_callback,
         loop_input: GenerationLoopInput,
         timeout=180,
     ):
         super().__init__(*items, timeout=timeout)
+        self.bot = bot
+        self.creation_sha = creation_sha
         self.refresh_callback = refresh_callback
         self.loop_input = loop_input
 
     async def feedback(self, stat, interaction):
-        result = requests.post(
-            self.gateway_url + "/update_stats",
+        ctx = await self.bot.get_application_context(interaction)
+        await ctx.defer()
+        requests.post(
+            self.loop_input.gateway_url + "/update_stats",
             json={
                 "creation": self.creation_sha,
                 "stat": stat,
@@ -70,11 +76,11 @@ class CreationActionButtons(discord.ui.View):
                 "address": interaction.user.id,
             },
         )
-        print(result.content)
-        await interaction.response.defer()
 
     @discord.ui.button(emoji="🔄", style=discord.ButtonStyle.blurple)
     async def refresh(self, button, interaction):
+        ctx = await self.bot.get_application_context(interaction)
+        await ctx.defer()
         await self.refresh_callback(
             loop_input=self.loop_input,
             interaction=interaction,
@@ -241,7 +247,7 @@ class EdenCog(commands.Cog):
         start_bot_message = (
             f"**{text_input1}** to **{text_input2}** - <@!{ctx.author.id}>\n"
         )
-        # await ctx.respond("Starting to lerp...")
+        await ctx.respond("Lerping...")
         message = await ctx.channel.send(start_bot_message)
 
         generation_loop_input = GenerationLoopInput(
@@ -268,53 +274,57 @@ class EdenCog(commands.Cog):
         config = loop_input.config
         refresh_interval = loop_input.refresh_interval
         is_video_request = loop_input.is_video_request
-
-        task_id = await request_creation(gateway_url, source, config)
-        while True:
-            result, file = await poll_creation_queue(
-                gateway_url,
-                minio_url,
-                task_id,
-                is_video_request,
-            )
-            message_update = self.get_message_update(result)
-
-            await self.edit_message(
-                message,
-                start_bot_message,
-                message_update,
-                file_update=file,
-            )
-
-            if result["status"] == "complete":
-                file = await get_file_update(result, minio_url, is_video_request)
-                view = CreationActionButtons(
-                    loop_input=loop_input,
-                    refresh_callback=self.refresh_callback,
+        try:
+            task_id = await request_creation(gateway_url, source, config)
+            while True:
+                result, file = await poll_creation_queue(
+                    gateway_url,
+                    minio_url,
+                    task_id,
+                    is_video_request,
                 )
-                if parent_message:
-                    new_message = await parent_message.reply(
-                        start_bot_message,
-                        files=[file],
-                        view=view,
-                    )
-                else:
-                    new_message = await message.channel.send(
-                        start_bot_message,
-                        files=[file],
-                        view=view,
-                    )
-                view.loop_input.parent_message = new_message
-                await message.delete()
-                return
-            await asyncio.sleep(refresh_interval)
+                message_update = self.get_message_update(result)
 
-        # except Exception as e:
-        #     await self.edit_interaction(ctx, start_bot_message, f"Error: {e}")
+                await self.edit_message(
+                    message,
+                    start_bot_message,
+                    message_update,
+                    file_update=file,
+                )
 
-    async def refresh_callback(self, loop_input: GenerationLoopInput, interaction):
-        ctx = await self.bot.get_application_context(interaction)
-        await ctx.defer()
+                if result["status"] == "complete":
+                    file, sha = await get_file_update(
+                        result,
+                        minio_url,
+                        is_video_request,
+                    )
+                    view = CreationActionButtons(
+                        bot=self.bot,
+                        creation_sha=sha,
+                        loop_input=loop_input,
+                        refresh_callback=self.refresh_callback,
+                    )
+                    if parent_message:
+                        new_message = await parent_message.reply(
+                            start_bot_message,
+                            files=[file],
+                            view=view,
+                        )
+                    else:
+                        new_message = await message.channel.send(
+                            start_bot_message,
+                            files=[file],
+                            view=view,
+                        )
+                    view.loop_input.parent_message = new_message
+                    await message.delete()
+                    return
+                await asyncio.sleep(refresh_interval)
+
+        except Exception as e:
+            await self.edit_message(message, start_bot_message, f"Error: {e}")
+
+    async def refresh_callback(self, loop_input: GenerationLoopInput):
         loop_input.message = await loop_input.parent_message.reply(
             loop_input.start_bot_message,
         )
@@ -404,7 +414,7 @@ class EdenCog(commands.Cog):
             progress = result["status_code"]
             return f"_Creation is **{progress}%** complete_"
         elif status == "complete":
-            return
+            return "_Creation is **100%** complete_"
 
     async def edit_interaction(
         self,
