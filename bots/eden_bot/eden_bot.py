@@ -19,9 +19,9 @@ from . import config
 from . import settings
 
 
-minio_url = "http://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
-gateway_url = os.getenv("GATEWAY_URL")
-magma_token = os.getenv("MAGMA_API_KEY")
+MINIO_URL = "http://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
+GATEWAY_URL = os.getenv("GATEWAY_URL")
+MAGMA_TOKEN = os.getenv("MAGMA_API_KEY")
 
 CONFIG = config.config_dict[config.stage]
 ALLOWED_GUILDS = CONFIG["guilds"]
@@ -38,7 +38,7 @@ class EdenCog(commands.Cog):
             presence_penalty=settings.GPT3_PRESENCE_PENALTY,
         )
         self.magma_model = AlephAlphaModel(
-            AlephAlphaClient(host="https://api.aleph-alpha.com", token=magma_token),
+            AlephAlphaClient(host="https://api.aleph-alpha.com", token=MAGMA_TOKEN),
             model_name="luminous-extended",
         )
 
@@ -60,18 +60,18 @@ class EdenCog(commands.Cog):
         large: discord.Option(bool, description="Larger resolution, ~2.25x more pixels", required=False, default=False),
         fast: discord.Option(bool, description="Fast generation, possibly some loss of quality", required=False, default=False)
     ):
-
+        
         if not self.perm_check(ctx):
             await ctx.respond("This command is not available in this channel.")
             return
-
+        
         if settings.CONTENT_FILTER_ON:
             if not OpenAIGPT3LanguageModel.content_safe(text_input):
                 await ctx.respond(
                     f"Content filter triggered, <@!{ctx.author.id}>. Please don't make me draw that. If you think it was a mistake, modify your prompt slightly and try again.",
                 )
                 return
-
+        
         source = SourceSettings(
             origin="discord",
             author=int(ctx.author.id),
@@ -81,10 +81,10 @@ class EdenCog(commands.Cog):
             channel=int(ctx.channel.id),
             channel_name=str(ctx.channel),
         )
-
+        
         width, height = self.get_dimensions(aspect_ratio, large)
         ddim_steps = 15 if fast else 50
-
+        
         config = StableDiffusionConfig(
             mode='generate',
             text_input=text_input,
@@ -96,14 +96,18 @@ class EdenCog(commands.Cog):
         
         start_bot_message = f"**{text_input}** - <@!{ctx.author.id}>\n"
         await ctx.respond(start_bot_message)
+        
+        async def self_run_again():
+            await self.dream(ctx, text_input, aspect_ratio, large, fast)
 
         await generation_loop(
-            gateway_url,
-            minio_url,
+            GATEWAY_URL,
+            MINIO_URL,
             ctx,
             start_bot_message,
             source,
             config,
+            refresh_action=self_run_again,
             refresh_interval=2
         )
 
@@ -168,8 +172,8 @@ class EdenCog(commands.Cog):
         await ctx.respond(start_bot_message)
 
         await generation_loop(
-            gateway_url,
-            minio_url,
+            GATEWAY_URL,
+            MINIO_URL,
             ctx,
             start_bot_message,
             source,
