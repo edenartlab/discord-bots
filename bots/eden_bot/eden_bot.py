@@ -1,6 +1,12 @@
+import asyncio
+import copy
 import os
 import random
+from dataclasses import dataclass
+from typing import Optional
+
 import discord
+import requests
 from aleph_alpha_client import AlephAlphaClient
 from aleph_alpha_client import AlephAlphaModel
 from aleph_alpha_client import CompletionRequest
@@ -11,7 +17,8 @@ from marsbots.discord_utils import is_mentioned
 from marsbots.discord_utils import replace_bot_mention
 from marsbots.discord_utils import replace_mentions_with_usernames
 from marsbots.language_models import OpenAIGPT3LanguageModel
-from marsbots_eden.eden import generation_loop
+from marsbots_eden.eden import poll_creation_queue
+from marsbots_eden.eden import request_creation
 from marsbots_eden.models import SourceSettings
 from marsbots_eden.models import StableDiffusionConfig
 
@@ -26,6 +33,61 @@ MAGMA_TOKEN = os.getenv("MAGMA_API_KEY")
 CONFIG = config.config_dict[config.stage]
 ALLOWED_GUILDS = CONFIG["guilds"]
 ALLOWED_CHANNELS = CONFIG["allowed_channels"]
+
+
+@dataclass
+class GenerationLoopInput:
+    gateway_url: str
+    minio_url: str
+    start_bot_message: str
+    source: SourceSettings
+    config: any
+    message: discord.Message
+    is_video_request: bool = False
+    refresh_interval: int = 2
+    parent_message: discord.Message = None
+
+
+class CreationActionButtons(discord.ui.View):
+    def __init__(
+        self,
+        *items,
+        refresh_callback,
+        loop_input: GenerationLoopInput,
+        timeout=180,
+    ):
+        super().__init__(*items, timeout=timeout)
+        self.refresh_callback = refresh_callback
+        self.loop_input = loop_input
+
+    async def feedback(self, stat, interaction):
+        result = requests.post(
+            self.gateway_url + "/update_stats",
+            json={
+                "creation": self.creation_sha,
+                "stat": stat,
+                "opperation": "increase",
+                "address": interaction.user.id,
+            },
+        )
+        print(result.content)
+        await interaction.response.defer()
+
+    @discord.ui.button(emoji="🔄", style=discord.ButtonStyle.blurple)
+    async def refresh(self, button, interaction):
+        await self.refresh_callback(
+            loop_input=self.loop_input,
+            interaction=interaction,
+        )
+
+    @discord.ui.button(emoji="🔥", style=discord.ButtonStyle.red)
+    async def burn(self, button, interaction):
+        await self.feedback("burn", interaction)
+
+    @discord.ui.button(label="🙌", style=discord.ButtonStyle.green)
+    async def praise(self, button, interaction):
+        await self.feedback("praise", interaction)
+        self.stop()
 
 
 class EdenCog(commands.Cog):
@@ -52,26 +114,36 @@ class EdenCog(commands.Cog):
             choices=[
                 discord.OptionChoice(name="square", value="square"),
                 discord.OptionChoice(name="landscape", value="landscape"),
-                discord.OptionChoice(name="portrait", value="portrait")
+                discord.OptionChoice(name="portrait", value="portrait"),
             ],
             required=False,
-            default="square"
+            default="square",
         ),
-        large: discord.Option(bool, description="Larger resolution, ~2.25x more pixels", required=False, default=False),
-        fast: discord.Option(bool, description="Fast generation, possibly some loss of quality", required=False, default=False)
+        large: discord.Option(
+            bool,
+            description="Larger resolution, ~2.25x more pixels",
+            required=False,
+            default=False,
+        ),
+        fast: discord.Option(
+            bool,
+            description="Fast generation, possibly some loss of quality",
+            required=False,
+            default=False,
+        ),
     ):
-        
+
         if not self.perm_check(ctx):
             await ctx.respond("This command is not available in this channel.")
             return
-        
+
         if settings.CONTENT_FILTER_ON:
             if not OpenAIGPT3LanguageModel.content_safe(text_input):
                 await ctx.respond(
                     f"Content filter triggered, <@!{ctx.author.id}>. Please don't make me draw that. If you think it was a mistake, modify your prompt slightly and try again.",
                 )
                 return
-        
+
         source = SourceSettings(
             origin="discord",
             author=int(ctx.author.id),
@@ -81,35 +153,32 @@ class EdenCog(commands.Cog):
             channel=int(ctx.channel.id),
             channel_name=str(ctx.channel),
         )
-        
+
         width, height = self.get_dimensions(aspect_ratio, large)
         ddim_steps = 15 if fast else 50
-        
+
         config = StableDiffusionConfig(
-            mode='generate',
+            mode="generate",
             text_input=text_input,
             width=width,
             height=height,
             ddim_steps=ddim_steps,
-            seed=random.randint(1,1e8)
+            seed=random.randint(1, 1e8),
         )
-        
-        start_bot_message = f"**{text_input}** - <@!{ctx.author.id}>\n"
-        await ctx.respond(start_bot_message)
-        
-        async def self_run_again():
-            await self.dream(ctx, text_input, aspect_ratio, large, fast)
 
-        await generation_loop(
-            GATEWAY_URL,
-            MINIO_URL,
-            ctx,
-            start_bot_message,
-            source,
-            config,
-            refresh_action=self_run_again,
-            refresh_interval=2
+        start_bot_message = f"**{text_input}** - <@!{ctx.author.id}>\n"
+        await ctx.respond("Starting to dream...")
+        message = await ctx.channel.send(start_bot_message)
+
+        generation_loop_input = GenerationLoopInput(
+            gateway_url=GATEWAY_URL,
+            minio_url=MINIO_URL,
+            message=message,
+            start_bot_message=start_bot_message,
+            source=source,
+            config=config,
         )
+        await self.generation_loop(generation_loop_input)
 
     @commands.slash_command(guild_ids=ALLOWED_GUILDS)
     async def lerp(
@@ -122,11 +191,11 @@ class EdenCog(commands.Cog):
             choices=[
                 discord.OptionChoice(name="square", value="square"),
                 discord.OptionChoice(name="landscape", value="landscape"),
-                discord.OptionChoice(name="portrait", value="portrait")
+                discord.OptionChoice(name="portrait", value="portrait"),
             ],
             required=False,
-            default="square"
-        )
+            default="square",
+        ),
     ):
 
         if not self.perm_check(ctx):
@@ -134,8 +203,9 @@ class EdenCog(commands.Cog):
             return
 
         if settings.CONTENT_FILTER_ON:
-            if not OpenAIGPT3LanguageModel.content_safe(text_input1) or \
-               not OpenAIGPT3LanguageModel.content_safe(text_input2):
+            if not OpenAIGPT3LanguageModel.content_safe(
+                text_input1,
+            ) or not OpenAIGPT3LanguageModel.content_safe(text_input2):
                 await ctx.respond(
                     f"Content filter triggered, <@!{ctx.author.id}>. Please don't make me draw that. If you think it was a mistake, modify your prompt slightly and try again.",
                 )
@@ -155,31 +225,101 @@ class EdenCog(commands.Cog):
         n_interpolate = 12
         ddim_steps = 25
         width, height = self.get_dimensions(aspect_ratio, False)
-        
+
         config = StableDiffusionConfig(
-            mode='interpolate',
+            mode="interpolate",
             text_input=text_input1,
             interpolation_texts=interpolation_texts,
             n_interpolate=n_interpolate,
             width=width,
             height=height,
             ddim_steps=ddim_steps,
-            seed=random.randint(1,1e8),
-            fixed_code=True
+            seed=random.randint(1, 1e8),
+            fixed_code=True,
         )
 
-        start_bot_message = f"**{text_input1}** to **{text_input2}** - <@!{ctx.author.id}>\n"
-        await ctx.respond(start_bot_message)
-
-        await generation_loop(
-            GATEWAY_URL,
-            MINIO_URL,
-            ctx,
-            start_bot_message,
-            source,
-            config,
-            refresh_interval=2
+        start_bot_message = (
+            f"**{text_input1}** to **{text_input2}** - <@!{ctx.author.id}>\n"
         )
+        # await ctx.respond("Starting to lerp...")
+        message = await ctx.channel.send(start_bot_message)
+
+        generation_loop_input = GenerationLoopInput(
+            gateway_url=GATEWAY_URL,
+            minio_url=MINIO_URL,
+            message=message,
+            start_bot_message=start_bot_message,
+            source=source,
+            config=config,
+            is_video_request=True,
+        )
+        await self.generation_loop(generation_loop_input)
+
+    async def generation_loop(
+        self,
+        loop_input: GenerationLoopInput,
+    ):
+        gateway_url = loop_input.gateway_url
+        minio_url = loop_input.minio_url
+        start_bot_message = loop_input.start_bot_message
+        parent_message = loop_input.parent_message
+        message = loop_input.message
+        source = loop_input.source
+        config = loop_input.config
+        refresh_interval = loop_input.refresh_interval
+        is_video_request = loop_input.is_video_request
+
+        task_id = await request_creation(gateway_url, source, config)
+        while True:
+            result, file = await poll_creation_queue(
+                gateway_url,
+                minio_url,
+                task_id,
+                is_video_request,
+            )
+            file_copy = copy.deepcopy(file)
+            message_update = self.get_message_update(result)
+
+            await self.edit_message(
+                message,
+                start_bot_message,
+                message_update,
+                file_update=file,
+            )
+
+            if result["status"] == "complete":
+                view = CreationActionButtons(
+                    loop_input=loop_input,
+                    refresh_callback=self.refresh_callback,
+                )
+                if parent_message:
+                    new_message = await parent_message.reply(
+                        start_bot_message,
+                        files=[file_copy],
+                        view=view,
+                    )
+                else:
+                    new_message = await message.channel.send(
+                        start_bot_message,
+                        files=[file_copy],
+                        view=view,
+                    )
+                view.loop_input.parent_message = new_message
+                await message.delete()
+                return
+            await asyncio.sleep(refresh_interval)
+
+        # except Exception as e:
+        #     await self.edit_interaction(ctx, start_bot_message, f"Error: {e}")
+
+    async def refresh_callback(self, loop_input: GenerationLoopInput, interaction):
+        ctx = await self.bot.get_application_context(interaction)
+        await ctx.defer()
+        loop_input.message = await loop_input.parent_message.reply(
+            loop_input.start_bot_message,
+        )
+        loop_input.config.seed = random.randint(1, 1e8)
+        await self.generation_loop(loop_input)
 
     @commands.Cog.listener("on_message")
     async def on_message(self, message: discord.Message) -> None:
@@ -191,10 +331,7 @@ class EdenCog(commands.Cog):
             ):
                 return
 
-            trigger_reply = (
-                is_mentioned(message, self.bot.user) 
-                and message.attachments
-            )
+            trigger_reply = is_mentioned(message, self.bot.user) and message.attachments
 
             if trigger_reply:
                 ctx = await self.bot.get_context(message)
@@ -203,7 +340,7 @@ class EdenCog(commands.Cog):
                     stop_sequences = []
                     if prompt:
                         text_input = 'Question: "{}"\nAnswer:'.format(prompt)
-                        stop_sequences = ['Question:']
+                        stop_sequences = ["Question:"]
                         prefix = ""
                     else:
                         text_input = "This is a picture of "
@@ -212,10 +349,10 @@ class EdenCog(commands.Cog):
                     image = ImagePrompt.from_url(url)
                     magma_prompt = Prompt([image, text_input])
                     request = CompletionRequest(
-                        prompt=magma_prompt, 
+                        prompt=magma_prompt,
                         maximum_tokens=100,
                         temperature=0.5,
-                        stop_sequences=stop_sequences
+                        stop_sequences=stop_sequences,
                     )
                     result = self.magma_model.complete(request)
                     response = prefix + result.completions[0].completion.strip(' "')
@@ -227,22 +364,25 @@ class EdenCog(commands.Cog):
 
     def message_preprocessor(self, message: discord.Message) -> str:
         message_content = replace_bot_mention(message.content, only_first=True)
-        message_content = replace_mentions_with_usernames(message_content, message.mentions)
+        message_content = replace_mentions_with_usernames(
+            message_content,
+            message.mentions,
+        )
         message_content = message_content.strip()
         return message_content
 
     def get_dimensions(self, aspect_ratio, large):
-        if aspect_ratio == 'square' and large:
+        if aspect_ratio == "square" and large:
             width, height = 768, 768
-        elif aspect_ratio == 'square' and not large:
+        elif aspect_ratio == "square" and not large:
             width, height = 512, 512
-        elif aspect_ratio == 'landscape' and large:
+        elif aspect_ratio == "landscape" and large:
             width, height = 896, 640
-        elif aspect_ratio == 'landscape' and not large:
+        elif aspect_ratio == "landscape" and not large:
             width, height = 640, 384
-        elif aspect_ratio == 'portrait' and large:
+        elif aspect_ratio == "portrait" and large:
             width, height = 640, 896
-        elif aspect_ratio == 'portrait' and not large:
+        elif aspect_ratio == "portrait" and not large:
             width, height = 384, 640
         return width, height
 
@@ -250,6 +390,46 @@ class EdenCog(commands.Cog):
         if ctx.channel.id not in ALLOWED_CHANNELS:
             return False
         return True
+
+    def get_message_update(self, result):
+        status = result["status"]
+        if status == "failed":
+            return "_Server error: Eden task failed_"
+        elif status in "pending":
+            return "_Creation is pending_"
+        elif status == "queued":
+            queue_idx = result["status_code"]
+            return f"_Creation is #{queue_idx} in queue_"
+        elif status == "running":
+            progress = result["status_code"]
+            return f"_Creation is **{progress}%** complete_"
+        elif status == "complete":
+            return
+
+    async def edit_interaction(
+        self,
+        ctx,
+        start_bot_message,
+        message_update,
+        file_update=None,
+    ):
+        message_content = f"{start_bot_message}\n{message_update}"
+        if file_update:
+            await ctx.edit(content=message_content, file=file_update)
+        else:
+            await ctx.edit(content=message_content)
+
+    async def edit_message(
+        self,
+        message: discord.Message,
+        start_bot_message: str,
+        message_update: str,
+        file_update: Optional[discord.File] = None,
+    ) -> discord.Message:
+        message_content = f"{start_bot_message}\n{message_update}"
+        await message.edit(content=message_content)
+        if file_update:
+            await message.edit(files=[file_update], attachments=[])
 
 
 def setup(bot: commands.Bot) -> None:
