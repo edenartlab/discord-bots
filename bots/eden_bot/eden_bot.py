@@ -1,5 +1,4 @@
 import asyncio
-import copy
 import os
 import random
 from dataclasses import dataclass
@@ -17,6 +16,7 @@ from marsbots.discord_utils import is_mentioned
 from marsbots.discord_utils import replace_bot_mention
 from marsbots.discord_utils import replace_mentions_with_usernames
 from marsbots.language_models import OpenAIGPT3LanguageModel
+from marsbots_eden.eden import get_file_update
 from marsbots_eden.eden import poll_creation_queue
 from marsbots_eden.eden import request_creation
 from marsbots_eden.models import SourceSettings
@@ -277,7 +277,6 @@ class EdenCog(commands.Cog):
                 task_id,
                 is_video_request,
             )
-            file_copy = copy.deepcopy(file)
             message_update = self.get_message_update(result)
 
             await self.edit_message(
@@ -288,6 +287,7 @@ class EdenCog(commands.Cog):
             )
 
             if result["status"] == "complete":
+                file = await get_file_update(result, minio_url, is_video_request)
                 view = CreationActionButtons(
                     loop_input=loop_input,
                     refresh_callback=self.refresh_callback,
@@ -295,13 +295,13 @@ class EdenCog(commands.Cog):
                 if parent_message:
                     new_message = await parent_message.reply(
                         start_bot_message,
-                        files=[file_copy],
+                        files=[file],
                         view=view,
                     )
                 else:
                     new_message = await message.channel.send(
                         start_bot_message,
-                        files=[file_copy],
+                        files=[file],
                         view=view,
                     )
                 view.loop_input.parent_message = new_message

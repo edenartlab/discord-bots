@@ -245,3 +245,5 @@ dev/
 data/
 output/
 !bots/.gitkeep
+*.mp4
+*.gif
