@@ -48,6 +48,38 @@ class GenerationLoopInput:
     parent_message: discord.Message = None
 
 
+class LerpModal(discord.ui.Modal):
+    def __init__(self, bot, refresh_callback, loop_input, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.bot = bot
+        self.refresh_callback = refresh_callback
+        self.loop_input = loop_input
+        self.add_item(discord.ui.InputText(label="Short Input"))
+
+    async def callback(self, interaction: discord.Interaction):
+        ctx = await self.bot.get_application_context(interaction)
+        await ctx.defer()
+        text_input1 = self.loop_input.config.text_input
+        text_input2 = self.children[0].value
+        interpolation_texts = [text_input1, text_input2]
+        width = self.loop_input.config.width
+        height = self.loop_input.config.height
+        n_interpolate = 12
+        ddim_steps = self.loop_input.config.ddim_steps
+        self.loop_input.config = StableDiffusionConfig(
+            mode="interpolate",
+            text_input=text_input1,
+            interpolation_texts=interpolation_texts,
+            n_interpolate=n_interpolate,
+            width=width,
+            height=height,
+            ddim_steps=ddim_steps,
+            fixed_code=True,
+        )
+        self.loop_input.is_video_request = True
+        await self.refresh_callback(loop_input=self.loop_input, reroll_seed=False)
+
+
 class CreationActionButtons(discord.ui.View):
     def __init__(
         self,
@@ -83,8 +115,18 @@ class CreationActionButtons(discord.ui.View):
         await ctx.defer()
         await self.refresh_callback(
             loop_input=self.loop_input,
-            interaction=interaction,
         )
+
+    # @discord.ui.button(label="Lerp It")
+    # async def lerp(self, button, interaction):
+    #     await interaction.response.send_modal(
+    #         LerpModal(
+    #             title="Lerp It",
+    #             bot=self.bot,
+    #             refresh_callback=self.refresh_callback,
+    #             loop_input=self.loop_input,
+    #         )
+    #     )
 
     @discord.ui.button(emoji="🔥", style=discord.ButtonStyle.red)
     async def burn(self, button, interaction):
@@ -324,11 +366,16 @@ class EdenCog(commands.Cog):
         except Exception as e:
             await self.edit_message(message, start_bot_message, f"Error: {e}")
 
-    async def refresh_callback(self, loop_input: GenerationLoopInput):
+    async def refresh_callback(
+        self,
+        loop_input: GenerationLoopInput,
+        reroll_seed: bool = True,
+    ):
         loop_input.message = await loop_input.parent_message.reply(
             loop_input.start_bot_message,
         )
-        loop_input.config.seed = random.randint(1, 1e8)
+        if reroll_seed:
+            loop_input.config.seed = random.randint(1, 1e8)
         await self.generation_loop(loop_input)
 
     @commands.Cog.listener("on_message")
