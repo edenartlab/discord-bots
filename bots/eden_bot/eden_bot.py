@@ -33,6 +33,7 @@ MAGMA_TOKEN = os.getenv("MAGMA_API_KEY")
 CONFIG = config.config_dict[config.stage]
 ALLOWED_GUILDS = CONFIG["guilds"]
 ALLOWED_CHANNELS = CONFIG["allowed_channels"]
+ALLOWED_LERP_BACKDOOR_USERS = CONFIG["allowed_channels"]
 
 
 @dataclass
@@ -192,15 +193,7 @@ class EdenCog(commands.Cog):
                 )
                 return
 
-        source = SourceSettings(
-            origin="discord",
-            author=int(ctx.author.id),
-            author_name=str(ctx.author),
-            guild=int(ctx.guild.id),
-            guild_name=str(ctx.guild),
-            channel=int(ctx.channel.id),
-            channel_name=str(ctx.channel),
-        )
+        source = self.get_source(ctx)
 
         width, height = self.get_dimensions(aspect_ratio, large)
         ddim_steps = 15 if fast else 50
@@ -259,15 +252,7 @@ class EdenCog(commands.Cog):
                 )
                 return
 
-        source = SourceSettings(
-            origin="discord",
-            author=int(ctx.author.id),
-            author_name=str(ctx.author),
-            guild=int(ctx.guild.id),
-            guild_name=str(ctx.guild),
-            channel=int(ctx.channel.id),
-            channel_name=str(ctx.channel),
-        )
+        source = self.get_source(ctx)
 
         interpolation_texts = [text_input1, text_input2]
         n_interpolate = 12
@@ -350,13 +335,13 @@ class EdenCog(commands.Cog):
                         new_message = await parent_message.reply(
                             start_bot_message,
                             files=[file],
-                            view=view,
+                            view=None,
                         )
                     else:
                         new_message = await message.channel.send(
                             start_bot_message,
                             files=[file],
-                            view=view,
+                            view=None,
                         )
                     view.loop_input.parent_message = new_message
                     await message.delete()
@@ -386,6 +371,18 @@ class EdenCog(commands.Cog):
                 or message.author.id == self.bot.user.id
                 or message.author.bot
             ):
+                return
+
+            if (message.author.id in ALLOWED_LERP_BACKDOOR_USERS):
+                ctx = await self.bot.get_context(message)
+                message_str = self.message_preprocessor(message)
+                message_str = message_str.split('|')
+                if len(message_str) != 2:
+                    await message.reply("Error: did not find 2 messages. Please separate with a pipe (|)")
+                    return
+                text_input1, text_input2 = [msg.strip() for msg in message_str]
+                await message.reply("Lerping...")
+                await self.lerp_backdoor(ctx, text_input1, text_input2, "square")
                 return
 
             trigger_reply = is_mentioned(message, self.bot.user) and message.attachments
@@ -448,6 +445,18 @@ class EdenCog(commands.Cog):
             return False
         return True
 
+    def get_source(self, ctx):
+        source = SourceSettings(
+            origin="discord",
+            author=int(ctx.author.id),
+            author_name=str(ctx.author),
+            guild=int(ctx.guild.id),
+            guild_name=str(ctx.guild),
+            channel=int(ctx.channel.id),
+            channel_name=str(ctx.channel),
+        )
+        return source
+
     def get_message_update(self, result):
         status = result["status"]
         if status == "failed":
@@ -488,6 +497,60 @@ class EdenCog(commands.Cog):
         if file_update:
             await message.edit(files=[file_update], attachments=[])
 
+    async def lerp_backdoor(
+        self,
+        ctx,
+        text_input1,
+        text_input2,
+        aspect_ratio
+    ):
+        if not self.perm_check(ctx):
+            await ctx.respond("This command is not available in this channel.")
+            return
+
+        if settings.CONTENT_FILTER_ON:
+            if not OpenAIGPT3LanguageModel.content_safe(
+                text_input1,
+            ) or not OpenAIGPT3LanguageModel.content_safe(text_input2):
+                await ctx.respond(
+                    f"Content filter triggered, <@!{ctx.author.id}>. Please don't make me draw that. If you think it was a mistake, modify your prompt slightly and try again.",
+                )
+                return
+
+        source = self.get_source(ctx)
+
+        interpolation_texts = [text_input1, text_input2]
+        n_interpolate = 12
+        ddim_steps = 25
+        width, height = self.get_dimensions(aspect_ratio, False)
+
+        config = StableDiffusionConfig(
+            mode="interpolate",
+            text_input=text_input1,
+            interpolation_texts=interpolation_texts,
+            n_interpolate=n_interpolate,
+            width=width,
+            height=height,
+            ddim_steps=ddim_steps,
+            seed=random.randint(1, 1e8),
+            fixed_code=True,
+        )
+
+        start_bot_message = (
+            f"**{text_input1}** to **{text_input2}** - <@!{ctx.author.id}>\n"
+        )
+        message = await ctx.channel.send(start_bot_message)
+
+        generation_loop_input = GenerationLoopInput(
+            gateway_url=GATEWAY_URL,
+            minio_url=MINIO_URL,
+            message=message,
+            start_bot_message=start_bot_message,
+            source=source,
+            config=config,
+            is_video_request=True,
+        )
+        await self.generation_loop(generation_loop_input)
 
 def setup(bot: commands.Bot) -> None:
     bot.add_cog(EdenCog(bot))
