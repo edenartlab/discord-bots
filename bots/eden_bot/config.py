@@ -37,9 +37,6 @@ config_dict = {
             channels.ABRAHAM_CORE_EDEN,
             channels.BRAINDROPS_STABLEDIFFUSION,
             channels.DEADAVATARS_GARDENOFEDEN,
-        ],
-        "allowed_lerp_backdoor_users": [
-            1008050481706324029
         ]
     },
 }
