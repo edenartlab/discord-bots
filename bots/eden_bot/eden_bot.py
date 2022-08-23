@@ -33,7 +33,6 @@ MAGMA_TOKEN = os.getenv("MAGMA_API_KEY")
 CONFIG = config.config_dict[config.stage]
 ALLOWED_GUILDS = CONFIG["guilds"]
 ALLOWED_CHANNELS = CONFIG["allowed_channels"]
-ALLOWED_LERP_BACKDOOR_USERS = CONFIG["allowed_channels"]
 
 
 @dataclass
@@ -81,6 +80,49 @@ class LerpModal(discord.ui.Modal):
         await self.refresh_callback(loop_input=self.loop_input, reroll_seed=False)
 
 
+
+class ImageActionButtons(discord.ui.View):
+    def __init__(
+        self,
+        *items,
+        bot,
+        image_url,
+        magma_callback,
+        interrogator_callback,
+        timeout=180,
+    ):
+        super().__init__(*items, timeout=timeout)
+        self.bot = bot
+        self.image_url = image_url
+        self.magma_callback = magma_callback
+        self.interrogator_callback = interrogator_callback
+
+    @discord.ui.button(label="Give me a prompt for it")
+    async def prompt(self, button, interaction):
+        response = self.interrogator_callback(self.image_url)
+        await interaction.response.send_message(response)
+
+    # @discord.ui.button(label="Ask a question about it")
+    # async def ask(self, button, interaction):
+    #     await interaction.response.send_modal(
+    #         AskModal(
+    #             title="Lerp It 222",
+    #             bot=self.bot
+    #         )
+    #     )
+
+    @discord.ui.button(label="Write a poem about it")
+    async def poem(self, button, interaction):
+        response = self.magma_callback(
+            self.image_url,
+            text_input="A short poem about this picture:",
+            stop_sequences=[],
+            maximum_tokens=160,
+            temperature=0.92
+        )
+        await interaction.response.send_message(response)
+
+
 class CreationActionButtons(discord.ui.View):
     def __init__(
         self,
@@ -118,16 +160,16 @@ class CreationActionButtons(discord.ui.View):
             loop_input=self.loop_input,
         )
 
-    # @discord.ui.button(label="Lerp It")
-    # async def lerp(self, button, interaction):
-    #     await interaction.response.send_modal(
-    #         LerpModal(
-    #             title="Lerp It",
-    #             bot=self.bot,
-    #             refresh_callback=self.refresh_callback,
-    #             loop_input=self.loop_input,
-    #         )
-    #     )
+    @discord.ui.button(label="Lerp It")
+    async def lerp(self, button, interaction):
+        await interaction.response.send_modal(
+            LerpModal(
+                title="Lerp It",
+                bot=self.bot,
+                refresh_callback=self.refresh_callback,
+                loop_input=self.loop_input,
+            )
+        )
 
     @discord.ui.button(emoji="🔥", style=discord.ButtonStyle.red)
     async def burn(self, button, interaction):
@@ -285,6 +327,33 @@ class EdenCog(commands.Cog):
         )
         await self.generation_loop(generation_loop_input)
 
+    def run_interrogator(
+        self,
+        image_url
+    ):
+        prompt = f"Interrogated prompt for {image_url}"
+        return prompt
+
+    def run_magma(
+        self,
+        image_url,
+        text_input,
+        stop_sequences,
+        maximum_tokens=100,
+        temperature=0.5
+    ):
+        image = ImagePrompt.from_url(image_url)
+        magma_prompt = Prompt([image, text_input])
+        request = CompletionRequest(
+            prompt=magma_prompt,
+            maximum_tokens=maximum_tokens,
+            temperature=temperature,
+            stop_sequences=stop_sequences,
+        )
+        result = self.magma_model.complete(request)
+        response = result.completions[0].completion.strip(' "')
+        return response
+
     async def generation_loop(
         self,
         loop_input: GenerationLoopInput,
@@ -332,13 +401,13 @@ class EdenCog(commands.Cog):
                         new_message = await parent_message.reply(
                             start_bot_message,
                             files=[file],
-                            view=None,
+                            view=view,
                         )
                     else:
                         new_message = await message.channel.send(
                             start_bot_message,
                             files=[file],
-                            view=None,
+                            view=view,
                         )
                     view.loop_input.parent_message = new_message
                     await message.delete()
@@ -376,26 +445,28 @@ class EdenCog(commands.Cog):
                 ctx = await self.bot.get_context(message)
                 async with ctx.channel.typing():
                     prompt = self.message_preprocessor(message)
-                    stop_sequences = []
+                    image_url = message.attachments[0].url
                     if prompt:
                         text_input = 'Question: "{}"\nAnswer:'.format(prompt)
-                        stop_sequences = ["Question:"]
-                        prefix = ""
+                        response = self.run_magma(
+                            image_url=image_url, 
+                            text_input=text_input,
+                            stop_sequences=["Question:", "Answer:"],
+                            maximum_tokens=100,
+                            temperature=0.5
+                        )
+                        await message.reply(response)
                     else:
-                        text_input = "This is a picture of "
-                        prefix = text_input
-                    url = message.attachments[0].url
-                    image = ImagePrompt.from_url(url)
-                    magma_prompt = Prompt([image, text_input])
-                    request = CompletionRequest(
-                        prompt=magma_prompt,
-                        maximum_tokens=100,
-                        temperature=0.5,
-                        stop_sequences=stop_sequences,
-                    )
-                    result = self.magma_model.complete(request)
-                    response = prefix + result.completions[0].completion.strip(' "')
-                    await message.reply(response)
+                        view = ImageActionButtons(
+                            bot=self.bot,
+                            image_url=image_url,
+                            magma_callback=self.run_magma,
+                            interrogator_callback=self.run_interrogator
+                        )
+                        await message.reply(
+                            "What would you like?",
+                            view=view,
+                        )
 
         except Exception as e:
             print(f"Error: {e}")
