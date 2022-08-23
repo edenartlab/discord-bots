@@ -37,6 +37,6 @@ config_dict = {
             channels.ABRAHAM_CORE_EDEN,
             channels.BRAINDROPS_STABLEDIFFUSION,
             channels.DEADAVATARS_GARDENOFEDEN,
-        ],
+        ]
     },
 }
