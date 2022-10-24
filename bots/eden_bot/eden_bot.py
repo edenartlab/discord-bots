@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import random
 from dataclasses import dataclass
@@ -19,6 +20,8 @@ from marsbots.language_models import OpenAIGPT3LanguageModel
 from marsbots_eden.eden import get_file_update
 from marsbots_eden.eden import poll_creation_queue
 from marsbots_eden.eden import request_creation
+from marsbots_eden.eden import poll_clip_queue
+from marsbots_eden.eden import request_clip
 from marsbots_eden.models import SourceSettings
 from marsbots_eden.models import StableDiffusionConfig
 
@@ -29,6 +32,9 @@ from . import settings
 MINIO_URL = "http://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
 GATEWAY_URL = os.getenv("GATEWAY_URL")
 MAGMA_TOKEN = os.getenv("MAGMA_API_KEY")
+
+
+GATEWAY_URL2 = "https://gateway.dev.aws.abraham.fun" 
 
 CONFIG = config.config_dict[config.stage]
 ALLOWED_GUILDS = CONFIG["guilds"]
@@ -99,6 +105,8 @@ class ImageActionButtons(discord.ui.View):
 
     @discord.ui.button(label="Give me a prompt for it")
     async def prompt(self, button, interaction):
+        ctx = await self.bot.get_application_context(interaction)
+        await ctx.defer()
         response = self.interrogator_callback(self.image_url)
         await interaction.response.send_message(response)
 
@@ -113,13 +121,19 @@ class ImageActionButtons(discord.ui.View):
 
     @discord.ui.button(label="Write a poem about it")
     async def poem(self, button, interaction):
-        response = self.magma_callback(
-            self.image_url,
-            text_input="A short poem about this picture:",
-            stop_sequences=[],
-            maximum_tokens=160,
-            temperature=0.92
-        )
+        # response = self.magma_callback(
+        #     self.image_url,
+        #     text_input="A short poem about this picture:",
+        #     stop_sequences=[],
+        #     maximum_tokens=160,
+        #     temperature=0.92
+        # )
+        ctx = await self.bot.get_application_context(interaction)
+        await ctx.defer()
+        
+        import time
+        time.sleep(5)
+        response = "hello world"
         await interaction.response.send_message(response)
 
 
@@ -194,6 +208,29 @@ class EdenCog(commands.Cog):
             AlephAlphaClient(host="https://api.aleph-alpha.com", token=MAGMA_TOKEN),
             model_name="luminous-extended",
         )
+
+    @commands.slash_command(guild_ids=ALLOWED_GUILDS)
+    async def go(
+        self,
+        ctx
+    ):     
+        data = {
+            "config": {
+                "mode": "interrogate",
+                "image_url": "https://cdn.discordapp.com/attachments/1006144058940469268/1011744967653326898/a_painting_of_a_mountain_with_a_lake_below_it_an_art_deco_painting_by_Lawren_Harris_trending_on_behance_crystal_cubism_fauvism_cubism_chillwave_v4.png"
+            },
+            "sniffer_name": "clip-tools"
+        }
+        
+        await ctx.defer()
+        async with ctx.channel.typing():
+            result = requests.post(
+                f"{GATEWAY_URL}/cliptest",
+                json=data
+            )       
+            result = json.loads(result.content)
+            await ctx.respond(result['caption'])
+            
 
     @commands.slash_command(guild_ids=ALLOWED_GUILDS)
     async def dream(
@@ -331,8 +368,23 @@ class EdenCog(commands.Cog):
         self,
         image_url
     ):
-        prompt = f"Interrogated prompt for {image_url}"
-        return prompt
+        print('dfhkdsf')
+        config = {
+            "mode": "interrogate",
+            "image_url": image_url
+        }
+        result = requests.post(
+            f"{GATEWAY_URL2}/request_clip",
+            json={"config": config, "sniffer_name": "clip-tools"}
+        )           
+        print("go")                
+        print(result.content)
+            
+        result = json.loads(result.content)
+        task_id = result['task_id']
+        print("GOT TAKS", task_id)
+        return task_id
+
 
     def run_magma(
         self,
@@ -432,6 +484,21 @@ class EdenCog(commands.Cog):
     @commands.Cog.listener("on_message")
     async def on_message(self, message: discord.Message) -> None:
         try:
+            
+            if (
+                message.channel.id not in ALLOWED_CHANNELS
+                or message.author.id == self.bot.user.id
+                or message.author.bot
+            ):
+                return
+
+
+            self.run_interrogator("http://4.bp.blogspot.com/-gx1tuHXeaSA/Tc2ut4VVvJI/AAAAAAAAAVs/6ND6FL1avvY/s1600/ben-grasso.jpg")
+
+            await message.reply("yo")
+
+
+
             if (
                 message.channel.id not in ALLOWED_CHANNELS
                 or message.author.id == self.bot.user.id
