@@ -19,6 +19,7 @@ from marsbots.language_models import OpenAIGPT3LanguageModel
 from marsbots_eden.eden import get_file_update
 from marsbots_eden.eden import poll_creation_queue
 from marsbots_eden.eden import request_creation
+from marsbots_eden.models import SignInCredentials
 from marsbots_eden.models import SourceSettings
 from marsbots_eden.models import StableDiffusionConfig
 
@@ -26,9 +27,11 @@ from . import config
 from . import settings
 
 
-MINIO_URL = "http://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
+MINIO_URL = "https://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
 GATEWAY_URL = os.getenv("GATEWAY_URL")
 MAGMA_TOKEN = os.getenv("MAGMA_API_KEY")
+EDEN_API_KEY = os.getenv("EDEN_API_KEY")
+EDEN_API_SECRET = os.getenv("EDEN_API_SECRET")
 
 CONFIG = config.config_dict[config.stage]
 ALLOWED_GUILDS = CONFIG["guilds"]
@@ -45,6 +48,7 @@ class GenerationLoopInput:
     config: any
     message: discord.Message
     is_video_request: bool = False
+    prefer_gif: bool = True
     refresh_interval: int = 2
     parent_message: discord.Message = None
 
@@ -65,17 +69,16 @@ class LerpModal(discord.ui.Modal):
         interpolation_texts = [text_input1, text_input2]
         width = self.loop_input.config.width
         height = self.loop_input.config.height
-        n_interpolate = 12
-        ddim_steps = self.loop_input.config.ddim_steps
+        n_frames = 36
+        steps = self.loop_input.config.steps
         self.loop_input.config = StableDiffusionConfig(
             mode="interpolate",
             text_input=text_input1,
             interpolation_texts=interpolation_texts,
-            n_interpolate=n_interpolate,
+            n_frames=n_frames,
             width=width,
             height=height,
-            ddim_steps=ddim_steps,
-            fixed_code=True,
+            steps=steps
         )
         self.loop_input.is_video_request = True
         await self.refresh_callback(loop_input=self.loop_input, reroll_seed=False)
@@ -142,6 +145,10 @@ class CreationActionButtons(discord.ui.View):
 class EdenCog(commands.Cog):
     def __init__(self, bot: commands.bot) -> None:
         self.bot = bot
+        self.eden_credentials = SignInCredentials(
+            apiKey=EDEN_API_KEY, 
+            apiSecret=EDEN_API_SECRET
+        )
         self.language_model = OpenAIGPT3LanguageModel(
             engine=settings.GPT3_ENGINE,
             temperature=settings.GPT3_TEMPERATURE,
@@ -151,7 +158,7 @@ class EdenCog(commands.Cog):
         self.magma_model = AlephAlphaModel(
             AlephAlphaClient(host="https://api.aleph-alpha.com", token=MAGMA_TOKEN),
             model_name="luminous-extended",
-        )
+        )            
 
     @commands.slash_command(guild_ids=ALLOWED_GUILDS)
     async def dream(
@@ -195,14 +202,14 @@ class EdenCog(commands.Cog):
 
         source = self.get_source(ctx)
         width, height = self.get_dimensions(aspect_ratio, large)
-        ddim_steps = 15 if fast else 50
+        steps = 15 if fast else 50
         
         config = StableDiffusionConfig(
             mode="generate",
             text_input=text_input,
             width=width,
             height=height,
-            ddim_steps=ddim_steps,
+            steps=steps,
             seed=random.randint(1, 1e8),
         )
 
@@ -217,6 +224,60 @@ class EdenCog(commands.Cog):
             start_bot_message=start_bot_message,
             source=source,
             config=config
+        )
+        await self.generation_loop(generation_loop_input)
+
+    @commands.slash_command(guild_ids=ALLOWED_GUILDS)
+    async def real2real(
+        self,
+        ctx,
+        image_url1: discord.Option(str, description="URL of first image", required=True),
+        image_url2: discord.Option(str, description="URL of second image", required=True)
+    ):
+
+        if not self.perm_check(ctx):
+            await ctx.respond("This command is not available in this channel.")
+            return
+
+        source = self.get_source(ctx)
+
+        interpolation_init_images = [image_url1, image_url2]
+        interpolation_seeds = [random.randint(1, 1e8) for _ in interpolation_init_images]
+        
+        n_frames = 60
+        steps = 25
+        width, height = 768, 768
+
+        config = StableDiffusionConfig(
+            mode="interpolate",
+            stream=True,
+            stream_every=1,
+            text_input="real2real",
+            interpolation_seeds=interpolation_seeds,
+            interpolation_init_images=interpolation_init_images,
+            interpolation_init_images_use_img2txt=True,
+            n_frames=n_frames,
+            loop=True,
+            width=width,
+            height=height,
+            sampler="euler", 
+            steps=steps,
+            seed=random.randint(1, 1e8)
+        )
+
+        start_bot_message = f"**Real2Real** by <@!{ctx.author.id}>\n"
+        await ctx.respond("Lerping...")
+        message = await ctx.channel.send(start_bot_message)
+
+        generation_loop_input = GenerationLoopInput(
+            gateway_url=GATEWAY_URL,
+            minio_url=MINIO_URL,
+            message=message,
+            start_bot_message=start_bot_message,
+            source=source,
+            config=config,
+            is_video_request=True,
+            prefer_gif=False
         )
         await self.generation_loop(generation_loop_input)
 
@@ -254,20 +315,24 @@ class EdenCog(commands.Cog):
         source = self.get_source(ctx)
 
         interpolation_texts = [text_input1, text_input2]
-        n_interpolate = 12
-        ddim_steps = 25
+        interpolation_seeds = [random.randint(1, 1e8) for _ in interpolation_texts]
+        n_frames = 36
+        steps = 25
         width, height = self.get_dimensions(aspect_ratio, False)
 
         config = StableDiffusionConfig(
             mode="interpolate",
+            stream=True,
+            stream_every=1,
             text_input=text_input1,
             interpolation_texts=interpolation_texts,
-            n_interpolate=n_interpolate,
+            interpolation_seeds=interpolation_seeds,
+            n_frames=n_frames,
             width=width,
             height=height,
-            ddim_steps=ddim_steps,
-            seed=random.randint(1, 1e8),
-            fixed_code=True,
+            sampler="euler_ancestral", 
+            steps=steps,
+            seed=random.randint(1, 1e8)
         )
 
         start_bot_message = f"**{text_input1}** to **{text_input2}** - <@!{ctx.author.id}>\n"
@@ -282,6 +347,7 @@ class EdenCog(commands.Cog):
             source=source,
             config=config,
             is_video_request=True,
+            prefer_gif=True
         )
         await self.generation_loop(generation_loop_input)
 
@@ -298,29 +364,31 @@ class EdenCog(commands.Cog):
         config = loop_input.config
         refresh_interval = loop_input.refresh_interval
         is_video_request = loop_input.is_video_request
+        prefer_gif = loop_input.prefer_gif
+
         try:
-            task_id = await request_creation(gateway_url, source, config)
+            task_id = await request_creation(gateway_url, self.eden_credentials, source, config)
             while True:
-                result, file = await poll_creation_queue(
+                result, file, sha = await poll_creation_queue(
                     gateway_url,
                     minio_url,
                     task_id,
                     is_video_request,
+                    prefer_gif
                 )
                 message_update = self.get_message_update(result)
-
                 await self.edit_message(
                     message,
                     start_bot_message,
                     message_update,
                     file_update=file,
                 )
-
                 if result["status"] == "complete":
                     file, sha = await get_file_update(
                         result,
                         minio_url,
                         is_video_request,
+                        prefer_gif
                     )
                     view = CreationActionButtons(
                         bot=self.bot,
@@ -371,7 +439,7 @@ class EdenCog(commands.Cog):
                 return
 
             trigger_reply = is_mentioned(message, self.bot.user) and message.attachments
-
+            
             if trigger_reply:
                 ctx = await self.bot.get_context(message)
                 async with ctx.channel.typing():
@@ -432,12 +500,11 @@ class EdenCog(commands.Cog):
 
     def get_source(self, ctx):
         source = SourceSettings(
-            origin="discord",
-            author=int(ctx.author.id),
+            author_id=int(ctx.author.id),
             author_name=str(ctx.author),
-            guild=int(ctx.guild.id),
+            guild_id=int(ctx.guild.id),
             guild_name=str(ctx.guild),
-            channel=int(ctx.channel.id),
+            channel_id=int(ctx.channel.id),
             channel_name=str(ctx.channel),
         )
         return source
