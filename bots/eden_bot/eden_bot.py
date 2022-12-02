@@ -191,6 +191,8 @@ class EdenCog(commands.Cog):
         ),
     ):
         
+        print("Received dream:", text_input)
+
         if not self.perm_check(ctx):
             await ctx.respond("This command is not available in this channel.")
             return
@@ -238,6 +240,8 @@ class EdenCog(commands.Cog):
         image_url1: discord.Option(str, description="URL of first image", required=True),
         image_url2: discord.Option(str, description="URL of second image", required=True)
     ):
+
+        print("Received real2real:", image_url1, image_url2)
 
         if not self.perm_check(ctx):
             await ctx.respond("This command is not available in this channel.")
@@ -305,6 +309,8 @@ class EdenCog(commands.Cog):
         ),
     ):
 
+        print("Received lerp:", text_input1, text_input2)
+        
         if not self.perm_check(ctx):
             await ctx.respond("This command is not available in this channel.")
             return
