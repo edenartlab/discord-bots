@@ -26,7 +26,8 @@ from marsbots_eden.models import DreamBoothBannyConfig
 from . import config
 from . import settings
 
-MINIO_URL = "https://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
+#MINIO_URL = "https://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
+MINIO_URL = "https://{}/{}".format(os.getenv("MINIO_URL"), "creations-stg")
 GATEWAY_URL = "https://gateway-test.abraham.ai" # os.getenv("GATEWAY_URL")
 MAGMA_TOKEN = os.getenv("MAGMA_API_KEY")
 EDEN_API_KEY = os.getenv("EDEN_API_KEY")
