@@ -26,7 +26,7 @@ from . import config
 from . import prompts
 from . import settings
 
-GATEWAY_URL = os.getenv("GATEWAY_URL")
+GATEWAY_URL = "https://gateway-test.abraham.ai" # os.getenv("GATEWAY_URL")
 MINIO_URL = "http://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
 
 CONFIG = config.config_dict[config.stage]
@@ -173,106 +173,96 @@ class Abraham(commands.Cog):
             logging.error(e)
             await ctx.respond("Error completing text - " + str(e))
 
-    @commands.slash_command(
-        guild_ids=ALLOWED_GUILDS,
-    )
-    async def create(
-        self,
-        ctx,
-        text_input: discord.Option(str, description="Prompt", required=True),
-        image_url: discord.Option(
-            str,
-            description="Image URL",
-            required=False,
-            default="",
-        ),
-        color_target_hex: discord.Option(
-            str,
-            description="Color Target Hex Code",
-            required=False,
-            default="#000000",
-        ),
-        color_loss_f: discord.Option(
-            float,
-            description="Color Loss Percentage",
-            required=False,
-            default=0.0,
-        ),
-        color_target_pixel_fraction: discord.Option(
-            float,
-            description="Color Target Pixel Fraction",
-            required=False,
-            default=0.75,
-        ),
-        n_permuted_prompts_to_add: discord.Option(
-            str,
-            description="Number of Permuted Prompts to Add",
-            required=False,
-            default=-1,
-        ),
-        aspect_ratio: discord.Option(
-            str,
-            choices=[
-                discord.OptionChoice(name="square", value="square"),
-                discord.OptionChoice(name="landscape", value="landscape"),
-                discord.OptionChoice(name="portrait", value="portrait")
-            ],
-            required=False,
-            default="landscape"
-        ),
-        large: discord.Option(bool, description="Larger resolution, ~2.25x more pixels", required=False, default=False)
-    ):
+    # @commands.slash_command(
+    #     guild_ids=ALLOWED_GUILDS,
+    # )
+    # async def create(
+    #     self,
+    #     ctx,
+    #     text_input: discord.Option(str, description="Prompt", required=True),
+    #     image_url: discord.Option(
+    #         str,
+    #         description="Image URL",
+    #         required=False,
+    #         default="",
+    #     ),
+    #     color_target_hex: discord.Option(
+    #         str,
+    #         description="Color Target Hex Code",
+    #         required=False,
+    #         default="#000000",
+    #     ),
+    #     color_loss_f: discord.Option(
+    #         float,
+    #         description="Color Loss Percentage",
+    #         required=False,
+    #         default=0.0,
+    #     ),
+    #     color_target_pixel_fraction: discord.Option(
+    #         float,
+    #         description="Color Target Pixel Fraction",
+    #         required=False,
+    #         default=0.75,
+    #     ),
+    #     n_permuted_prompts_to_add: discord.Option(
+    #         str,
+    #         description="Number of Permuted Prompts to Add",
+    #         required=False,
+    #         default=-1,
+    #     ),
+    #     aspect_ratio: discord.Option(
+    #         str,
+    #         choices=[
+    #             discord.OptionChoice(name="square", value="square"),
+    #             discord.OptionChoice(name="landscape", value="landscape"),
+    #             discord.OptionChoice(name="portrait", value="portrait")
+    #         ],
+    #         required=False,
+    #         default="landscape"
+    #     ),
+    #     large: discord.Option(bool, description="Larger resolution, ~2.25x more pixels", required=False, default=False)
+    # ):
 
-        if not self.perm_check(ctx):
-            await ctx.respond("This command is not available in this channel.")
-            return
+    #     if not self.perm_check(ctx):
+    #         await ctx.respond("This command is not available in this channel.")
+    #         return
 
-        if settings.CONTENT_FILTER_ON:
-            if not OpenAIGPT3LanguageModel.content_safe(text_input):
-                await ctx.respond(
-                    f"Content filter triggered, <@!{ctx.author.id}>. Please don't make me draw that. If you think it was a mistake, modify your prompt slightly and try again.",
-                )
-                return
+    #     if settings.CONTENT_FILTER_ON:
+    #         if not OpenAIGPT3LanguageModel.content_safe(text_input):
+    #             await ctx.respond(
+    #                 f"Content filter triggered, <@!{ctx.author.id}>. Please don't make me draw that. If you think it was a mistake, modify your prompt slightly and try again.",
+    #             )
+    #             return
 
-        source = self.get_source(ctx)
+    #     source = self.get_source(ctx)
 
-        width, height = self.get_dimensions(aspect_ratio, large)
+    #     width, height = self.get_dimensions(aspect_ratio, large)
 
-        config = EdenClipXConfig(
-            text_input=text_input,
-            image_url=image_url,
-            n_permuted_prompts_to_add=n_permuted_prompts_to_add,
-            color_rgb_target=hex_to_rgb_float(color_target_hex),
-            color_loss_f=color_loss_f,
-            color_target_pixel_fraction=color_target_pixel_fraction,
-            width=width,
-            height=height,
-        )
+    #     config = EdenClipXConfig(
+    #         text_input=text_input,
+    #         image_url=image_url,
+    #         n_permuted_prompts_to_add=n_permuted_prompts_to_add,
+    #         color_rgb_target=hex_to_rgb_float(color_target_hex),
+    #         color_loss_f=color_loss_f,
+    #         color_target_pixel_fraction=color_target_pixel_fraction,
+    #         width=width,
+    #         height=height,
+    #     )
 
-        start_bot_message = f"**{text_input}** - <@!{ctx.author.id}>\n\n"
-        #await ctx.respond(start_bot_message)
-        await ctx.respond("Starting to create...")
-        message = await ctx.channel.send(start_bot_message)
+    #     start_bot_message = f"**{text_input}** - <@!{ctx.author.id}>\n\n"
+    #     #await ctx.respond(start_bot_message)
+    #     await ctx.respond("Starting to create...")
+    #     message = await ctx.channel.send(start_bot_message)
 
-        generation_loop_input = GenerationLoopInput(
-            gateway_url=GATEWAY_URL,
-            minio_url=MINIO_URL,
-            message=message,
-            start_bot_message=start_bot_message,
-            source=source,
-            config=config,
-        )
-        await self.generation_loop(generation_loop_input)
-
-        # await generation_loop(
-        #     gateway_url,
-        #     minio_url,
-        #     ctx,
-        #     start_bot_message,
-        #     source,
-        #     config,
-        #     refresh_interval=2,
-        # )
+    #     generation_loop_input = GenerationLoopInput(
+    #         gateway_url=GATEWAY_URL,
+    #         minio_url=MINIO_URL,
+    #         message=message,
+    #         start_bot_message=start_bot_message,
+    #         source=source,
+    #         config=config,
+    #     )
+    #     await self.generation_loop(generation_loop_input)
 
     async def generation_loop(
         self,
