@@ -21,17 +21,16 @@ from marsbots_eden.eden import poll_creation_queue
 from marsbots_eden.eden import request_creation
 from marsbots_eden.models import SignInCredentials
 from marsbots_eden.models import SourceSettings
-from marsbots_eden.models import StableDiffusionConfig
+from marsbots_eden.models import DreamBoothBannyConfig
 
 from . import config
 from . import settings
 
-
 MINIO_URL = "https://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
 GATEWAY_URL = os.getenv("GATEWAY_URL")
 MAGMA_TOKEN = os.getenv("MAGMA_API_KEY")
-EDEN_API_KEY = os.getenv("EDEN_EDEN_API_KEY")
-EDEN_API_SECRET = os.getenv("EDEN_EDEN_API_SECRET")
+EDEN_API_KEY = os.getenv("BANNY_EDEN_API_KEY")
+EDEN_API_SECRET = os.getenv("BANNY_EDEN_API_SECRET")
 
 CONFIG = config.config_dict[config.stage]
 ALLOWED_GUILDS = CONFIG["guilds"]
@@ -52,38 +51,6 @@ class GenerationLoopInput:
     refresh_interval: int = 2
     parent_message: discord.Message = None
 
-
-class LerpModal(discord.ui.Modal):
-    def __init__(self, bot, refresh_callback, loop_input, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self.bot = bot
-        self.refresh_callback = refresh_callback
-        self.loop_input = loop_input
-        self.add_item(discord.ui.InputText(label="Short Input"))
-
-    async def callback(self, interaction: discord.Interaction):
-        ctx = await self.bot.get_application_context(interaction)
-        await ctx.defer()
-        text_input1 = self.loop_input.config.text_input
-        text_input2 = self.children[0].value
-        interpolation_texts = [text_input1, text_input2]
-        width = self.loop_input.config.width
-        height = self.loop_input.config.height
-        n_frames = 36
-        steps = self.loop_input.config.steps
-        self.loop_input.config = StableDiffusionConfig(
-            mode="interpolate",
-            stream=True,
-            stream_every=1,
-            text_input=text_input1,
-            interpolation_texts=interpolation_texts,
-            n_frames=n_frames,
-            width=width,
-            height=height,
-            steps=steps
-        )
-        self.loop_input.is_video_request = True
-        await self.refresh_callback(loop_input=self.loop_input, reroll_seed=False)
 
 
 class CreationActionButtons(discord.ui.View):
@@ -206,15 +173,14 @@ class EdenCog(commands.Cog):
         width, height = self.get_dimensions(aspect_ratio, large)
         steps = 15 if fast else 50
         
-        config = StableDiffusionConfig(
-            mode="generate",
-            stream=True,
-            stream_every=5,
-            text_input=text_input,
+        config = DreamBoothBannyConfig(
+            prompt=text_input,
+            seed=random.randint(1, 1e8),
+            num_outputs=1,
             width=width,
             height=height,
-            steps=steps,
-            seed=random.randint(1, 1e8),
+            num_inference_steps=steps,
+            guidance_scale=8
         )
 
         start_bot_message = f"**{text_input}** - <@!{ctx.author.id}>\n"
@@ -228,135 +194,6 @@ class EdenCog(commands.Cog):
             start_bot_message=start_bot_message,
             source=source,
             config=config
-        )
-        await self.generation_loop(generation_loop_input)
-
-    @commands.slash_command(guild_ids=ALLOWED_GUILDS)
-    async def real2real(
-        self,
-        ctx,
-        image_url1: discord.Option(str, description="URL of first image", required=True),
-        image_url2: discord.Option(str, description="URL of second image", required=True)
-    ):
-
-        if not self.perm_check(ctx):
-            await ctx.respond("This command is not available in this channel.")
-            return
-
-        source = self.get_source(ctx)
-
-        interpolation_init_images = [image_url1, image_url2]
-        interpolation_seeds = [random.randint(1, 1e8) for _ in interpolation_init_images]
-        n_frames = 40
-        steps = 25
-        width, height = 512, 512
-
-        config = StableDiffusionConfig(
-            mode="interpolate",
-            stream=True,
-            stream_every=1,
-            text_input="real2real",
-            uc_text="",
-            interpolation_seeds=interpolation_seeds,
-            interpolation_init_images=interpolation_init_images,
-            interpolation_init_images_use_img2txt=True,
-            n_frames=n_frames,
-            loop=True,
-            smooth=True,
-            n_film=0,
-            width=width,
-            height=height,
-            sampler="euler", 
-            steps=steps,
-            seed=random.randint(1, 1e8)
-        )
-
-        start_bot_message = f"**Real2Real** by <@!{ctx.author.id}>\n"
-        await ctx.respond("Lerping...")
-        message = await ctx.channel.send(start_bot_message)
-
-        generation_loop_input = GenerationLoopInput(
-            gateway_url=GATEWAY_URL,
-            minio_url=MINIO_URL,
-            message=message,
-            start_bot_message=start_bot_message,
-            source=source,
-            config=config,
-            is_video_request=True,
-            prefer_gif=False
-        )
-        await self.generation_loop(generation_loop_input)
-
-    @commands.slash_command(guild_ids=ALLOWED_GUILDS)
-    async def lerp(
-        self,
-        ctx,
-        text_input1: discord.Option(str, description="First prompt", required=True),
-        text_input2: discord.Option(str, description="Second prompt", required=True),
-        aspect_ratio: discord.Option(
-            str,
-            choices=[
-                discord.OptionChoice(name="square", value="square"),
-                discord.OptionChoice(name="landscape", value="landscape"),
-                discord.OptionChoice(name="portrait", value="portrait"),
-            ],
-            required=False,
-            default="square",
-        ),
-    ):
-
-        if not self.perm_check(ctx):
-            await ctx.respond("This command is not available in this channel.")
-            return
-
-        if settings.CONTENT_FILTER_ON:
-            if not OpenAIGPT3LanguageModel.content_safe(
-                text_input1,
-            ) or not OpenAIGPT3LanguageModel.content_safe(text_input2):
-                await ctx.respond(
-                    f"Content filter triggered, <@!{ctx.author.id}>. Please don't make me draw that. If you think it was a mistake, modify your prompt slightly and try again.",
-                )
-                return
-
-        source = self.get_source(ctx)
-
-        interpolation_texts = [text_input1, text_input2]
-        interpolation_seeds = [random.randint(1, 1e8) for _ in interpolation_texts]
-        n_frames = 40
-        steps = 25
-        width, height = self.get_dimensions(aspect_ratio, False)
-
-        config = StableDiffusionConfig(
-            mode="interpolate",
-            stream=True,
-            stream_every=1,
-            text_input=text_input1,
-            uc_text="",
-            interpolation_texts=interpolation_texts,
-            interpolation_seeds=interpolation_seeds,
-            n_frames=n_frames,
-            smooth=True,
-            loop=True,
-            width=width,
-            height=height,
-            sampler="euler_ancestral", 
-            steps=steps,
-            seed=random.randint(1, 1e8)
-        )
-
-        start_bot_message = f"**{text_input1}** to **{text_input2}** - <@!{ctx.author.id}>\n"
-        await ctx.respond("Lerping...")
-        message = await ctx.channel.send(start_bot_message)
-
-        generation_loop_input = GenerationLoopInput(
-            gateway_url=GATEWAY_URL,
-            minio_url=MINIO_URL,
-            message=message,
-            start_bot_message=start_bot_message,
-            source=source,
-            config=config,
-            is_video_request=True,
-            prefer_gif=True
         )
         await self.generation_loop(generation_loop_input)
 
