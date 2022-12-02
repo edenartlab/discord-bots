@@ -29,8 +29,8 @@ from . import settings
 MINIO_URL = "https://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
 GATEWAY_URL = "https://gateway-test.abraham.ai" # os.getenv("GATEWAY_URL")
 MAGMA_TOKEN = os.getenv("MAGMA_API_KEY")
-EDEN_API_KEY = os.getenv("BANNY_EDEN_API_KEY")
-EDEN_API_SECRET = os.getenv("BANNY_EDEN_API_SECRET")
+EDEN_API_KEY = os.getenv("EDEN_API_KEY")
+EDEN_API_SECRET = os.getenv("EDEN_API_SECRET")
 
 CONFIG = config.config_dict[config.stage]
 ALLOWED_GUILDS = CONFIG["guilds"]
