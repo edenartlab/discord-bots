@@ -28,18 +28,11 @@ from . import settings
 
 
 MINIO_URL = "https://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
+print("BUCKET", MINIO_URL)
 GATEWAY_URL = "https://gateway-test.abraham.ai" # os.getenv("GATEWAY_URL")
 MAGMA_TOKEN = os.getenv("MAGMA_API_KEY")
 EDEN_API_KEY = os.getenv("EDEN_API_KEY")
 EDEN_API_SECRET = os.getenv("EDEN_API_SECRET")
-
-print("the token")
-print(os.getenv("DISCORD_TOKEN"))
-
-print("THE KEYS...")
-print(EDEN_API_KEY, EDEN_API_SECRET)
-print(os.getenv("EDEN_API_SECRET"), os.getenv("EDEN_API_SECRET"))
-print("-----")
 
 CONFIG = config.config_dict[config.stage]
 ALLOWED_GUILDS = CONFIG["guilds"]
