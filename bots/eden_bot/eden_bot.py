@@ -33,6 +33,11 @@ MAGMA_TOKEN = os.getenv("MAGMA_API_KEY")
 EDEN_API_KEY = os.getenv("EDEN_EDEN_API_KEY")
 EDEN_API_SECRET = os.getenv("EDEN_EDEN_API_SECRET")
 
+print("THE KEYS")
+print(EDEN_API_KEY, EDEN_API_SECRET)
+print(os.getenv("EDEN_API_SECRET"), os.getenv("EDEN_API_SECRET"))
+print("-----")
+
 CONFIG = config.config_dict[config.stage]
 ALLOWED_GUILDS = CONFIG["guilds"]
 ALLOWED_CHANNELS = CONFIG["allowed_channels"]
