@@ -27,7 +27,8 @@ from . import prompts
 from . import settings
 
 GATEWAY_URL = "https://gateway-test.abraham.ai" # os.getenv("GATEWAY_URL")
-MINIO_URL = "http://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
+#MINIO_URL = "http://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
+MINIO_URL = "https://{}/{}".format(os.getenv("MINIO_URL"), "creations-stg")
 
 CONFIG = config.config_dict[config.stage]
 ALLOWED_GUILDS = CONFIG["guilds"]
