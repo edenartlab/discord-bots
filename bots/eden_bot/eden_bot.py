@@ -36,7 +36,7 @@ EDEN_API_SECRET = os.getenv("EDEN_API_SECRET")
 print("the token")
 print(os.getenv("DISCORD_TOKEN"))
 
-print("THE KEYS")
+print("THE KEYS...")
 print(EDEN_API_KEY, EDEN_API_SECRET)
 print(os.getenv("EDEN_API_SECRET"), os.getenv("EDEN_API_SECRET"))
 print("-----")
