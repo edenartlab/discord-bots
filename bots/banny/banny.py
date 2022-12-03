@@ -170,9 +170,15 @@ class EdenCog(commands.Cog):
                 )
                 return
 
+        if "banny" not in text_input:
+            await ctx.respond("Please include 'banny' in your prompt.")
+            return
+
         source = self.get_source(ctx)
         width, height = self.get_dimensions(aspect_ratio, large)
         steps = 15 if fast else 50
+
+        text_input = text_input.replace("banny", "banny character")
         
         config = DreamBoothBannyConfig(
             prompt=text_input,
