@@ -21,20 +21,13 @@ config_dict = {
     "prod": {
         "guilds": [
             channels.GENEKOGAN_GUILD_ID,
-            channels.MARS_COLLEGE_GUILD_ID,
-            channels.ABRAHAM_GUILD_ID,
-            channels.BRAINDROPS_GUILD_ID,
-            channels.DEADAVATARS_GUILD_ID,
+            channels.ABRAHAM_GUILD_ID
         ],
         "allowed_channels": [
             channels.GENE_GENERAL,
-            channels.MARS_2023_EDEN,
-            channels.MARS_AI,
             channels.ABRAHAM_DEVS_BOTS,
             channels.ABRAHAM_EDEN,
-            channels.ABRAHAM_CORE_EDEN,
-            channels.BRAINDROPS_STABLEDIFFUSION,
-            channels.DEADAVATARS_GARDENOFEDEN,
+            channels.ABRAHAM_CORE_EDEN
         ]
     },
 }
