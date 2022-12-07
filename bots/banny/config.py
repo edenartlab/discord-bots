@@ -21,13 +21,15 @@ config_dict = {
     "prod": {
         "guilds": [
             channels.GENEKOGAN_GUILD_ID,
-            channels.ABRAHAM_GUILD_ID
+            channels.ABRAHAM_GUILD_ID,
+            channels.JUICEBOX_GUILD_ID
         ],
         "allowed_channels": [
             channels.GENE_GENERAL,
             channels.ABRAHAM_DEVS_BOTS,
             channels.ABRAHAM_EDEN,
-            channels.ABRAHAM_CORE_EDEN
+            channels.ABRAHAM_CORE_EDEN,
+            channels.JUICEBOX_BANNY_WARHOL
         ]
     },
 }
