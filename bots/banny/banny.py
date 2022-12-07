@@ -178,10 +178,11 @@ class EdenCog(commands.Cog):
         width, height = self.get_dimensions(aspect_ratio, large)
         steps = 15 if fast else 50
 
-        text_input = text_input.replace("banny", "banny character")
+        text_input2 = text_input.replace("banny character", "banny")
+        text_input2 = text_input2.replace("banny", "banny character")
         
         config = DreamBoothBannyConfig(
-            prompt=text_input,
+            prompt=text_input2,
             seed=random.randint(1, 1e8),
             num_outputs=1,
             width=width,
