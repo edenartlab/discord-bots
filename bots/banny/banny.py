@@ -112,7 +112,7 @@ class CreationActionButtons(discord.ui.View):
         self.stop()
 
 
-class EdenCog(commands.Cog):
+class BannyCog(commands.Cog):
     def __init__(self, bot: commands.bot) -> None:
         self.bot = bot
         self.eden_credentials = SignInCredentials(
@@ -403,4 +403,4 @@ class EdenCog(commands.Cog):
             await message.edit(files=[file_update], attachments=[])
 
 def setup(bot: commands.Bot) -> None:
-    bot.add_cog(EdenCog(bot))
+    bot.add_cog(BannyCog(bot))
