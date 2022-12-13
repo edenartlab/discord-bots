@@ -31,5 +31,5 @@ config_dict = {
             channels.ABRAHAM_CORE_EDEN,
             channels.JUICEBOX_BANNY_WARHOL
         ]
-    },
+    }, 
 }
