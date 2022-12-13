@@ -170,8 +170,8 @@ class BannyCog(commands.Cog):
                 )
                 return
 
-        if "banny" not in text_input:
-            await ctx.respond("Please include 'banny' in your prompt.")
+        if "banny" not in text_input.lower():
+            await ctx.respond("Please include banny in your prompt.")
             return
 
         source = self.get_source(ctx)
