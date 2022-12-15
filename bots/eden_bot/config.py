@@ -14,13 +14,13 @@ config_dict = {
         "guilds": [
             channels.GENEKOGAN_GUILD_ID,
             channels.ABRAHAM_BOTDEV_GUILD_ID,
-            channels.ABRAHAM_GUILD_ID
+            channels.ABRAHAM_GUILD_ID,            
         ],
         "allowed_channels": [
             channels.GENE_GENERAL,
             channels.ABRAHAM_BOTDEV_ABRAHAM,
             channels.ABRAHAM_EDEN,
-            channels.ABRAHAM_CORE_EDEN,
+            channels.ABRAHAM_CORE_EDEN
         ]
     },
     "prod": {
@@ -30,6 +30,7 @@ config_dict = {
             channels.ABRAHAM_GUILD_ID,
             channels.BRAINDROPS_GUILD_ID,
             channels.DEADAVATARS_GUILD_ID,
+            channels.VIRTUALBEINGS_GUILD_ID
         ],
         "allowed_channels": [
             channels.GENE_GENERAL,
@@ -40,6 +41,7 @@ config_dict = {
             channels.ABRAHAM_CORE_EDEN,
             channels.BRAINDROPS_STABLEDIFFUSION,
             channels.DEADAVATARS_GARDENOFEDEN,
+            channels.VIRTUALBEINGS_EDEN
         ]
     },
 }
