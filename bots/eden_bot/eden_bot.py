@@ -27,10 +27,10 @@ from . import config
 from . import settings
 
 
-#MINIO_URL = "https://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
+# MINIO_URL = "https://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
 MINIO_URL = "https://{}/{}".format(os.getenv("MINIO_URL"), "creations-stg")
 print("MINIO", MINIO_URL)
-GATEWAY_URL = "https://gateway-test.abraham.ai" # os.getenv("GATEWAY_URL")
+GATEWAY_URL = "https://gateway-test.abraham.ai"  # os.getenv("GATEWAY_URL")
 MAGMA_TOKEN = os.getenv("MAGMA_API_KEY")
 EDEN_API_KEY = os.getenv("EDEN_API_KEY")
 EDEN_API_SECRET = os.getenv("EDEN_API_SECRET")
@@ -82,7 +82,7 @@ class LerpModal(discord.ui.Modal):
             n_frames=n_frames,
             width=width,
             height=height,
-            steps=steps
+            steps=steps,
         )
         self.loop_input.is_video_request = True
         await self.refresh_callback(loop_input=self.loop_input, reroll_seed=False)
@@ -150,8 +150,7 @@ class EdenCog(commands.Cog):
     def __init__(self, bot: commands.bot) -> None:
         self.bot = bot
         self.eden_credentials = SignInCredentials(
-            apiKey=EDEN_API_KEY, 
-            apiSecret=EDEN_API_SECRET
+            apiKey=EDEN_API_KEY, apiSecret=EDEN_API_SECRET
         )
         self.language_model = OpenAIGPT3LanguageModel(
             engine=settings.GPT3_ENGINE,
@@ -159,10 +158,10 @@ class EdenCog(commands.Cog):
             frequency_penalty=settings.GPT3_FREQUENCY_PENALTY,
             presence_penalty=settings.GPT3_PRESENCE_PENALTY,
         )
-        self.magma_model = AlephAlphaModel(
-            AlephAlphaClient(host="https://api.aleph-alpha.com", token=MAGMA_TOKEN),
-            model_name="luminous-extended",
-        )            
+        # self.magma_model = AlephAlphaModel(
+        #     AlephAlphaClient(host="https://api.aleph-alpha.com", token=MAGMA_TOKEN),
+        #     model_name="luminous-extended",
+        # )
 
     @commands.slash_command(guild_ids=ALLOWED_GUILDS)
     async def dream(
@@ -192,13 +191,13 @@ class EdenCog(commands.Cog):
             default=False,
         ),
     ):
-        
+
         print("Received dream:", text_input)
 
         if not self.perm_check(ctx):
             await ctx.respond("This command is not available in this channel.")
             return
-        
+
         if settings.CONTENT_FILTER_ON:
             if not OpenAIGPT3LanguageModel.content_safe(text_input):
                 await ctx.respond(
@@ -209,7 +208,7 @@ class EdenCog(commands.Cog):
         source = self.get_source(ctx)
         width, height = self.get_dimensions(aspect_ratio, large)
         steps = 15 if fast else 50
-        
+
         config = StableDiffusionConfig(
             mode="generate",
             stream=True,
@@ -231,7 +230,7 @@ class EdenCog(commands.Cog):
             message=message,
             start_bot_message=start_bot_message,
             source=source,
-            config=config
+            config=config,
         )
         await self.generation_loop(generation_loop_input)
 
@@ -239,11 +238,13 @@ class EdenCog(commands.Cog):
     async def real2real(
         self,
         ctx,
-        image_url1: discord.Option(str, description="URL of first image", required=True),
-        image_url2: discord.Option(str, description="URL of second image", required=True)
+        image1: discord.Option(
+            discord.Attachment, description="First image", required=True
+        ),
+        image2: discord.Option(
+            discord.Attachment, description="Second image", required=True
+        ),
     ):
-
-        print("Received real2real:", image_url1, image_url2)
 
         if not self.perm_check(ctx):
             await ctx.respond("This command is not available in this channel.")
@@ -251,8 +252,15 @@ class EdenCog(commands.Cog):
 
         source = self.get_source(ctx)
 
-        interpolation_init_images = [image_url1, image_url2]
-        interpolation_seeds = [random.randint(1, 1e8) for _ in interpolation_init_images]
+        if not (image1 and image2):
+            await ctx.respond("Please provide two images to interpolate between.")
+            return
+
+        interpolation_init_images = [image1.url, image2.url]
+
+        interpolation_seeds = [
+            random.randint(1, 1e8) for _ in interpolation_init_images
+        ]
         n_frames = 40
         steps = 25
         width, height = 512, 512
@@ -272,9 +280,9 @@ class EdenCog(commands.Cog):
             n_film=0,
             width=width,
             height=height,
-            sampler="euler", 
+            sampler="euler",
             steps=steps,
-            seed=random.randint(1, 1e8)
+            seed=random.randint(1, 1e8),
         )
 
         start_bot_message = f"**Real2Real** by <@!{ctx.author.id}>\n"
@@ -289,7 +297,7 @@ class EdenCog(commands.Cog):
             source=source,
             config=config,
             is_video_request=True,
-            prefer_gif=False
+            prefer_gif=False,
         )
         await self.generation_loop(generation_loop_input)
 
@@ -347,12 +355,14 @@ class EdenCog(commands.Cog):
             loop=True,
             width=width,
             height=height,
-            sampler="euler_ancestral", 
+            sampler="euler_ancestral",
             steps=steps,
-            seed=random.randint(1, 1e8)
+            seed=random.randint(1, 1e8),
         )
 
-        start_bot_message = f"**{text_input1}** to **{text_input2}** - <@!{ctx.author.id}>\n"
+        start_bot_message = (
+            f"**{text_input1}** to **{text_input2}** - <@!{ctx.author.id}>\n"
+        )
         await ctx.respond("Lerping...")
         message = await ctx.channel.send(start_bot_message)
 
@@ -364,7 +374,7 @@ class EdenCog(commands.Cog):
             source=source,
             config=config,
             is_video_request=True,
-            prefer_gif=True
+            prefer_gif=True,
         )
         await self.generation_loop(generation_loop_input)
 
@@ -384,14 +394,12 @@ class EdenCog(commands.Cog):
         prefer_gif = loop_input.prefer_gif
 
         try:
-            task_id = await request_creation(gateway_url, self.eden_credentials, source, config)
+            task_id = await request_creation(
+                gateway_url, self.eden_credentials, source, config
+            )
             while True:
                 result, file, sha = await poll_creation_queue(
-                    gateway_url,
-                    minio_url,
-                    task_id,
-                    is_video_request,
-                    prefer_gif
+                    gateway_url, minio_url, task_id, is_video_request, prefer_gif
                 )
                 message_update = self.get_message_update(result)
                 await self.edit_message(
@@ -402,10 +410,7 @@ class EdenCog(commands.Cog):
                 )
                 if result["status"] == "complete":
                     file, sha = await get_file_update(
-                        result,
-                        minio_url,
-                        is_video_request,
-                        prefer_gif
+                        result, minio_url, is_video_request, prefer_gif
                     )
                     view = CreationActionButtons(
                         bot=self.bot,
@@ -456,7 +461,7 @@ class EdenCog(commands.Cog):
                 return
 
             trigger_reply = is_mentioned(message, self.bot.user) and message.attachments
-            
+
             if trigger_reply:
                 ctx = await self.bot.get_context(message)
                 async with ctx.channel.typing():
@@ -564,6 +569,7 @@ class EdenCog(commands.Cog):
         await message.edit(content=message_content)
         if file_update:
             await message.edit(files=[file_update], attachments=[])
+
 
 def setup(bot: commands.Bot) -> None:
     bot.add_cog(EdenCog(bot))
