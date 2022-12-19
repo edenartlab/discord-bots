@@ -29,7 +29,6 @@ from . import settings
 
 # MINIO_URL = "https://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
 MINIO_URL = "https://{}/{}".format(os.getenv("MINIO_URL"), "creations-stg")
-print("MINIO", MINIO_URL)
 GATEWAY_URL = "https://gateway-test.abraham.ai"  # os.getenv("GATEWAY_URL")
 MAGMA_TOKEN = os.getenv("MAGMA_API_KEY")
 EDEN_API_KEY = os.getenv("EDEN_API_KEY")
@@ -69,9 +68,12 @@ class LerpModal(discord.ui.Modal):
         text_input1 = self.loop_input.config.text_input
         text_input2 = self.children[0].value
         interpolation_texts = [text_input1, text_input2]
+        seed1 = self.loop_input.config.seed
+        seed2 = random.randint(1, 1e8)
+        interpolation_seeds = [seed1, seed2]
         width = self.loop_input.config.width
         height = self.loop_input.config.height
-        n_frames = 36
+        n_frames = 60
         steps = self.loop_input.config.steps
         self.loop_input.config = StableDiffusionConfig(
             mode="interpolate",
@@ -79,6 +81,7 @@ class LerpModal(discord.ui.Modal):
             stream_every=1,
             text_input=text_input1,
             interpolation_texts=interpolation_texts,
+            interpolation_seeds=interpolation_seeds,
             n_frames=n_frames,
             width=width,
             height=height,
@@ -125,16 +128,16 @@ class CreationActionButtons(discord.ui.View):
             loop_input=self.loop_input,
         )
 
-    # @discord.ui.button(label="Lerp It")
-    # async def lerp(self, button, interaction):
-    #     await interaction.response.send_modal(
-    #         LerpModal(
-    #             title="Lerp It",
-    #             bot=self.bot,
-    #             refresh_callback=self.refresh_callback,
-    #             loop_input=self.loop_input,
-    #         )
-    #     )
+    @discord.ui.button(label="Lerp It")
+    async def lerp(self, button, interaction):
+        await interaction.response.send_modal(
+            LerpModal(
+                title="Lerp It",
+                bot=self.bot,
+                refresh_callback=self.refresh_callback,
+                loop_input=self.loop_input,
+            )
+        )
 
     @discord.ui.button(emoji="🔥", style=discord.ButtonStyle.red)
     async def burn(self, button, interaction):
@@ -235,6 +238,60 @@ class EdenCog(commands.Cog):
         await self.generation_loop(generation_loop_input)
 
     @commands.slash_command(guild_ids=ALLOWED_GUILDS)
+    async def remix(
+        self,
+        ctx,
+        image1: discord.Option(
+            discord.Attachment, description="Image to remix", required=True
+        ),
+    ):
+
+        print("Received remix:", image1)
+
+        if not self.perm_check(ctx):
+            await ctx.respond("This command is not available in this channel.")
+            return
+
+        if not image1:
+            await ctx.respond("Please provide an image to remix.")
+            return
+
+        source = self.get_source(ctx)
+
+        steps = 100
+        width, height = 1280, 720
+
+        config = StableDiffusionConfig(
+            mode="remix",
+            stream=True,
+            stream_every=1,
+            text_input="remix",
+            uc_text="poorly drawn face, ugly, tiling, out of frame, extra limbs, disfigured, deformed body, blurry, blurred, watermark, text, grainy, signature, cut off, draft",
+            init_image_data=image1.url,
+            width=width,
+            height=height,
+            sampler="euler", 
+            steps=steps,
+            seed=random.randint(1, 1e8)
+        )
+
+        start_bot_message = f"**Remix** by <@!{ctx.author.id}>\n"
+        await ctx.respond("Remixing...")
+        message = await ctx.channel.send(start_bot_message)
+
+        generation_loop_input = GenerationLoopInput(
+            gateway_url=GATEWAY_URL,
+            minio_url=MINIO_URL,
+            message=message,
+            start_bot_message=start_bot_message,
+            source=source,
+            config=config,
+            is_video_request=False,
+            prefer_gif=False
+        )
+        await self.generation_loop(generation_loop_input)
+
+    @commands.slash_command(guild_ids=ALLOWED_GUILDS)
     async def real2real(
         self,
         ctx,
@@ -261,7 +318,7 @@ class EdenCog(commands.Cog):
         interpolation_seeds = [
             random.randint(1, 1e8) for _ in interpolation_init_images
         ]
-        n_frames = 40
+        n_frames = 60
         steps = 25
         width, height = 512, 512
 
@@ -270,7 +327,7 @@ class EdenCog(commands.Cog):
             stream=True,
             stream_every=1,
             text_input="real2real",
-            uc_text="",
+            uc_text="poorly drawn face, ugly, tiling, out of frame, extra limbs, disfigured, deformed body, blurry, blurred, watermark, text, grainy, signature, cut off, draft",
             interpolation_seeds=interpolation_seeds,
             interpolation_init_images=interpolation_init_images,
             interpolation_init_images_use_img2txt=True,
@@ -338,7 +395,7 @@ class EdenCog(commands.Cog):
 
         interpolation_texts = [text_input1, text_input2]
         interpolation_seeds = [random.randint(1, 1e8) for _ in interpolation_texts]
-        n_frames = 40
+        n_frames = 60
         steps = 25
         width, height = self.get_dimensions(aspect_ratio, False)
 
@@ -347,7 +404,7 @@ class EdenCog(commands.Cog):
             stream=True,
             stream_every=1,
             text_input=text_input1,
-            uc_text="",
+            uc_text="poorly drawn face, ugly, tiling, out of frame, extra limbs, disfigured, deformed body, blurry, blurred, watermark, text, grainy, signature, cut off, draft",
             interpolation_texts=interpolation_texts,
             interpolation_seeds=interpolation_seeds,
             n_frames=n_frames,
@@ -374,7 +431,7 @@ class EdenCog(commands.Cog):
             source=source,
             config=config,
             is_video_request=True,
-            prefer_gif=True,
+            prefer_gif=False,
         )
         await self.generation_loop(generation_loop_input)
 
@@ -397,17 +454,20 @@ class EdenCog(commands.Cog):
             task_id = await request_creation(
                 gateway_url, self.eden_credentials, source, config
             )
+            current_sha = None
             while True:
                 result, file, sha = await poll_creation_queue(
                     gateway_url, minio_url, task_id, is_video_request, prefer_gif
                 )
-                message_update = self.get_message_update(result)
-                await self.edit_message(
-                    message,
-                    start_bot_message,
-                    message_update,
-                    file_update=file,
-                )
+                if sha != current_sha:
+                    current_sha = sha
+                    message_update = self.get_message_update(result)
+                    await self.edit_message(
+                        message,
+                        start_bot_message,
+                        message_update,
+                        file_update=file,
+                    )
                 if result["status"] == "complete":
                     file, sha = await get_file_update(
                         result, minio_url, is_video_request, prefer_gif
