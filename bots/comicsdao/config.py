@@ -13,8 +13,8 @@ config_dict = {
     "dev": {
         "guilds": [
             channels.GENEKOGAN_GUILD_ID,
-            channels.ABRAHAM_GUILD_ID,
             channels.ABRAHAM_BOTDEV_GUILD_ID,
+            channels.ABRAHAM_GUILD_ID,
             channels.COMICSDAO_GUILD_ID,
         ],
         "allowed_channels": [
@@ -24,7 +24,7 @@ config_dict = {
             channels.ABRAHAM_DEVS_BOTS,
             channels.ABRAHAM_EDEN,
             channels.ABRAHAM_CORE_EDEN,
-            channels.COMICSDAO_EDEN,
+            channels.COMICSDAO_AI_COMICS,
         ],
     },
     "prod": {
@@ -36,7 +36,7 @@ config_dict = {
             channels.ABRAHAM_DEVS_BOTS,
             channels.ABRAHAM_EDEN,
             channels.ABRAHAM_CORE_EDEN,
-            channels.COMICSDAO_EDEN,
+            channels.COMICSDAO_AI_COMICS,
         ],
     },
 }
