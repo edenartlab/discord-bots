@@ -232,11 +232,7 @@ class HuaqiangbeiCog(commands.Cog):
 
     @commands.Cog.listener("on_message")
     async def on_message(self, message: discord.Message) -> None:
-        print("RECEIVE MESSAGE")
         try:
-
-            print("ON ", message.channel.id)
-
             if (
                 message.channel.id in ALLOWED_CHANNELS
                 and message.author.id != self.bot.user.id
@@ -245,14 +241,9 @@ class HuaqiangbeiCog(commands.Cog):
                 ctx = await self.bot.get_context(message)
                 source = self.get_source(ctx)
 
-                print("JUMP", message.jump_url)
-
                 for attachment in message.attachments:
 
-                    print("CONTENT", message.content)
-                    
-                    # parse message for number in beginning of string
-                    init_img_strength = re.search(r"^\d+", message.content)
+                    #init_img_strength = re.search(r"^\d+", message.content)
 
                     config = StableDiffusionConfig(
                         mode="remix",
@@ -269,7 +260,7 @@ class HuaqiangbeiCog(commands.Cog):
                         seed=random.randint(1, 1e8)
                     )
 
-                    start_bot_message = f"**Remix** by <@!{ctx.author.id}> at {message.jump_url}\n"
+                    start_bot_message = f"**Remix** of {message.jump_url} by <@!{ctx.author.id}>\n"
                     channel = self.bot.get_channel(channels.MARS_2023_HIGHLIGHTS_AI)
                     message = await channel.send(start_bot_message)
 
