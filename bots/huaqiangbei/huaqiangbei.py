@@ -31,7 +31,6 @@ from . import channels
 # MINIO_URL = "https://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
 MINIO_URL = "https://{}/{}".format(os.getenv("MINIO_URL"), "creations-stg")
 GATEWAY_URL = "https://gateway-test.abraham.ai"  # os.getenv("GATEWAY_URL")
-MAGMA_TOKEN = os.getenv("MAGMA_API_KEY")
 EDEN_API_KEY = os.getenv("EDEN_API_KEY")
 EDEN_API_SECRET = os.getenv("EDEN_API_SECRET")
 
@@ -268,7 +267,7 @@ class HuaqiangbeiCog(commands.Cog):
                     )
 
                     start_bot_message = f"**Remix** by <@!{ctx.author.id}> at {message.jump_url}\n"
-                    channel = self.bot.get_channel(829759746529296384)
+                    channel = self.bot.get_channel(channels.MARS_2023_HIGHLIGHTS_AI)
                     message = await channel.send(start_bot_message)
 
                     generation_loop_input = GenerationLoopInput(
