@@ -395,8 +395,8 @@ class EdenCog(commands.Cog):
 
         interpolation_texts = [text_input1, text_input2]
         interpolation_seeds = [random.randint(1, 1e8) for _ in interpolation_texts]
-        n_frames = 100
-        steps = 50
+        n_frames = 60
+        steps = 25
         width, height = self.get_dimensions(aspect_ratio, False)
 
         config = StableDiffusionConfig(
