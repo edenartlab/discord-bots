@@ -232,7 +232,10 @@ class HuaqiangbeiCog(commands.Cog):
 
     @commands.Cog.listener("on_message")
     async def on_message(self, message: discord.Message) -> None:
+        print("RECEIVE MESSAGE")
         try:
+
+            print("ON ", message.channel.id)
 
             if (
                 message.channel.id in ALLOWED_CHANNELS
