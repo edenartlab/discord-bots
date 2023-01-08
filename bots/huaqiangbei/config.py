@@ -16,17 +16,15 @@ config_dict = {
         ],
         "allowed_channels": [
             channels.GENE_GENERAL,
-            channels.MARS_2023_HIGHLIGHTS,
         ],
     },
     "prod": {
         "guilds": [
-            channels.GENEKOGAN_GUILD_ID,
             channels.MARS_COLLEGE_GUILD_ID,
         ],
         "allowed_channels": [
-            channels.GENE_GENERAL,
             channels.MARS_2023_HIGHLIGHTS,
+            channels.MARS_2023_HIGHLIGHTS_AI,
         ],
     },
 }
