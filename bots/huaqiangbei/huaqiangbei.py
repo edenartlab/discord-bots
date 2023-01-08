@@ -38,8 +38,6 @@ EDEN_API_SECRET = os.getenv("EDEN_API_SECRET")
 CONFIG = config.config_dict[config.stage]
 ALLOWED_GUILDS = CONFIG["guilds"]
 ALLOWED_CHANNELS = CONFIG["allowed_channels"]
-ALLOWED_CHANNELS_AUTOREMIX = CONFIG["allowed_channels_autoremix"]
-ALLOWED_LERP_BACKDOOR_USERS = CONFIG["allowed_channels"]
 
 
 @dataclass
@@ -238,14 +236,13 @@ class HuaqiangbeiCog(commands.Cog):
         try:
 
             if (
-                message.channel.id in ALLOWED_CHANNELS_AUTOREMIX
+                message.channel.id in ALLOWED_CHANNELS
                 and message.author.id != self.bot.user.id
                 and message.attachments
             ):
                 ctx = await self.bot.get_context(message)
                 source = self.get_source(ctx)
 
-                # get "copy message url" link
                 print("JUMP", message.jump_url)
 
                 for attachment in message.attachments:
