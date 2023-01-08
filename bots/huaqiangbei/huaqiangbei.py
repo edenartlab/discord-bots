@@ -240,6 +240,7 @@ class HuaqiangbeiCog(commands.Cog):
             ):
                 ctx = await self.bot.get_context(message)
                 source = self.get_source(ctx)
+                jump_url = message.jump_url
 
                 for attachment in message.attachments:
 
@@ -260,14 +261,14 @@ class HuaqiangbeiCog(commands.Cog):
                         seed=random.randint(1, 1e8)
                     )
 
-                    start_bot_message = f"**Remix** of {message.jump_url} by <@!{ctx.author.id}>\n"
+                    start_bot_message = f"**Remix** of {jump_url} by <@!{ctx.author.id}>\n"
                     channel = self.bot.get_channel(channels.MARS_2023_HIGHLIGHTS_AI)
-                    message = await channel.send(start_bot_message)
+                    new_message = await channel.send(start_bot_message)
 
                     generation_loop_input = GenerationLoopInput(
                         gateway_url=GATEWAY_URL,
                         minio_url=MINIO_URL,
-                        message=message,
+                        message=new_message,
                         start_bot_message=start_bot_message,
                         source=source,
                         config=config,
