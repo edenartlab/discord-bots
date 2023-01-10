@@ -319,7 +319,7 @@ class EdenCog(commands.Cog):
             random.randint(1, 1e8) for _ in interpolation_init_images
         ]
         n_frames = 100
-        steps = 50
+        steps = 60
         width, height = 512, 512
 
         config = StableDiffusionConfig(
@@ -334,11 +334,14 @@ class EdenCog(commands.Cog):
             n_frames=n_frames,
             loop=False,
             smooth=True,
-            n_film=0,
+            n_film=1,
             width=width,
             height=height,
-            sampler="euler",
+            sampler="klms",
             steps=steps,
+            scale=10,
+            scale_modulation=0.1,
+            latent_smoothing_std=0.01,
             seed=random.randint(1, 1e8),
         )
 
@@ -396,7 +399,7 @@ class EdenCog(commands.Cog):
         interpolation_texts = [text_input1, text_input2]
         interpolation_seeds = [random.randint(1, 1e8) for _ in interpolation_texts]
         n_frames = 60
-        steps = 25
+        steps = 60
         width, height = self.get_dimensions(aspect_ratio, False)
 
         config = StableDiffusionConfig(
@@ -410,10 +413,14 @@ class EdenCog(commands.Cog):
             n_frames=n_frames,
             smooth=True,
             loop=False,
+            n_film=1,
             width=width,
             height=height,
-            sampler="euler_ancestral",
+            sampler="klms",
             steps=steps,
+            scale=10,
+            scale_modulation=0.1,
+            latent_smoothing_std=0.01,
             seed=random.randint(1, 1e8),
         )
 
