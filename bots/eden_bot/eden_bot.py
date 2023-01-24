@@ -73,7 +73,7 @@ class LerpModal(discord.ui.Modal):
         interpolation_seeds = [seed1, seed2]
         width = self.loop_input.config.width
         height = self.loop_input.config.height
-        n_frames = 60
+        n_frames = 32
         steps = self.loop_input.config.steps
         self.loop_input.config = StableDiffusionConfig(
             mode="interpolate",
@@ -321,7 +321,7 @@ class EdenCog(commands.Cog):
         interpolation_seeds = [
             random.randint(1, 1e8) for _ in interpolation_init_images
         ]
-        n_frames = 80
+        n_frames = 32
         steps = 50
         width, height = 578, 578
 
@@ -404,8 +404,8 @@ class EdenCog(commands.Cog):
 
         interpolation_texts = [text_input1, text_input2]
         interpolation_seeds = [random.randint(1, 1e8) for _ in interpolation_texts]
-        n_frames = 60
-        steps = 60
+        n_frames = 32
+        steps = 50
         width, height, upscale_f = self.get_dimensions(aspect_ratio, False, img_mode = False)
 
         config = StableDiffusionConfig(
