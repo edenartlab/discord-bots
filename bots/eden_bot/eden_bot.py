@@ -209,7 +209,7 @@ class EdenCog(commands.Cog):
                 return
 
         source = self.get_source(ctx)
-        width, height = self.get_dimensions(aspect_ratio, large)
+        width, height, upscale_f = get_dimensions(aspect_ratio, large, img_mode = True)
         steps = 30 if fast else 60
 
         config = StableDiffusionConfig(
@@ -222,6 +222,7 @@ class EdenCog(commands.Cog):
             width=width,
             height=height,
             steps=steps,
+            upscale_f=upscale_f,
             seed=random.randint(1, 1e8),
         )
 
@@ -402,7 +403,7 @@ class EdenCog(commands.Cog):
         interpolation_seeds = [random.randint(1, 1e8) for _ in interpolation_texts]
         n_frames = 60
         steps = 60
-        width, height = self.get_dimensions(aspect_ratio, False)
+        width, height, upscale_f = get_dimensions(aspect_ratio, False, img_mode = False)
 
         config = StableDiffusionConfig(
             mode="interpolate",
@@ -569,20 +570,28 @@ class EdenCog(commands.Cog):
         message_content = message_content.strip()
         return message_content
 
-    def get_dimensions(self, aspect_ratio, large):
-        if aspect_ratio == "square" and large:
-            width, height = 768, 768
-        elif aspect_ratio == "square" and not large:
-            width, height = 640, 640
-        elif aspect_ratio == "landscape" and large:
-            width, height = 896, 640
-        elif aspect_ratio == "landscape" and not large:
-            width, height = 768, 512
-        elif aspect_ratio == "portrait" and large:
-            width, height = 640, 896
-        elif aspect_ratio == "portrait" and not large:
-            width, height = 512, 768
-        return width, height
+    def get_dimensions(self, aspect_ratio, large, img_mode = True):
+        if img_mode:
+            if aspect_ratio == "square":
+                width, height = 768, 768
+            elif aspect_ratio == "landscape":
+                width, height = 832, 512
+            elif aspect_ratio == "portrait":
+                width, height = 512, 832
+        else: # video mode:
+            if aspect_ratio == "square":
+                width, height = 640, 640
+            elif aspect_ratio == "landscape":
+                width, height = 768, 512
+            elif aspect_ratio == "portrait":
+                width, height = 512, 768
+                
+        if large and img_mode:
+            upscale_f = 1.4
+        else:
+            upscale_f = 1.0
+            
+        return width, height, upscale_f
 
     def perm_check(self, ctx):
         if ctx.channel.id not in ALLOWED_CHANNELS:
