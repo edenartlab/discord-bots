@@ -209,7 +209,7 @@ class EdenCog(commands.Cog):
                 return
 
         source = self.get_source(ctx)
-        width, height, upscale_f = get_dimensions(aspect_ratio, large, img_mode = True)
+        width, height, upscale_f = self.get_dimensions(aspect_ratio, large, img_mode = True)
         steps = 30 if fast else 60
 
         config = StableDiffusionConfig(
@@ -403,7 +403,7 @@ class EdenCog(commands.Cog):
         interpolation_seeds = [random.randint(1, 1e8) for _ in interpolation_texts]
         n_frames = 60
         steps = 60
-        width, height, upscale_f = get_dimensions(aspect_ratio, False, img_mode = False)
+        width, height, upscale_f = self.get_dimensions(aspect_ratio, False, img_mode = False)
 
         config = StableDiffusionConfig(
             mode="interpolate",
