@@ -346,6 +346,7 @@ class EdenCog(commands.Cog):
             scale_modulation=0.1,
             latent_smoothing_std=0.01,
             seed=random.randint(1, 1e8),
+            interpolation_init_images_min_strength = 0.3,  # a higher value will make the video smoother, but allows less visual change / journey
         )
 
         start_bot_message = f"**Real2Real** by <@!{ctx.author.id}>\n"
