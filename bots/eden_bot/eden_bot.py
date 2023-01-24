@@ -321,8 +321,8 @@ class EdenCog(commands.Cog):
         interpolation_seeds = [
             random.randint(1, 1e8) for _ in interpolation_init_images
         ]
-        n_frames = 100
-        steps = 60
+        n_frames = 80
+        steps = 50
         width, height = 578, 578
 
         config = StableDiffusionConfig(
@@ -346,6 +346,9 @@ class EdenCog(commands.Cog):
             scale_modulation=0.1,
             latent_smoothing_std=0.01,
             seed=random.randint(1, 1e8),
+            aesthetic_steps              = 10,
+            aesthetic_lr                 = 0.0001,
+            ag_L2_normalization_constant = 0.1, # for real2real, only normalize the aesthetic gradient a tiny bit
         )
 
         start_bot_message = f"**Real2Real** by <@!{ctx.author.id}>\n"
