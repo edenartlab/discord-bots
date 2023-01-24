@@ -210,13 +210,15 @@ class EdenCog(commands.Cog):
 
         source = self.get_source(ctx)
         width, height = self.get_dimensions(aspect_ratio, large)
-        steps = 15 if fast else 50
+        steps = 30 if fast else 60
 
         config = StableDiffusionConfig(
             mode="generate",
             stream=True,
-            stream_every=5,
+            stream_every=4,
             text_input=text_input,
+            sampler="euler_ancestral",
+            uc_text="poorly drawn face, ugly, tiling, out of frame, extra limbs, disfigured, deformed body, blurry, blurred, watermark, text, grainy, signature, cut off, draft",
             width=width,
             height=height,
             steps=steps,
@@ -270,7 +272,7 @@ class EdenCog(commands.Cog):
             init_image_data=image1.url,
             width=width,
             height=height,
-            sampler="euler", 
+            sampler="euler_ancestral", 
             steps=steps,
             seed=random.randint(1, 1e8)
         )
@@ -320,7 +322,7 @@ class EdenCog(commands.Cog):
         ]
         n_frames = 100
         steps = 60
-        width, height = 512, 512
+        width, height = 578, 578
 
         config = StableDiffusionConfig(
             mode="interpolate",
@@ -339,7 +341,7 @@ class EdenCog(commands.Cog):
             height=height,
             sampler="klms",
             steps=steps,
-            scale=10,
+            scale=12,
             scale_modulation=0.1,
             latent_smoothing_std=0.01,
             seed=random.randint(1, 1e8),
@@ -418,7 +420,7 @@ class EdenCog(commands.Cog):
             height=height,
             sampler="klms",
             steps=steps,
-            scale=10,
+            scale=12,
             scale_modulation=0.1,
             latent_smoothing_std=0.01,
             seed=random.randint(1, 1e8),
@@ -571,15 +573,15 @@ class EdenCog(commands.Cog):
         if aspect_ratio == "square" and large:
             width, height = 768, 768
         elif aspect_ratio == "square" and not large:
-            width, height = 512, 512
+            width, height = 640, 640
         elif aspect_ratio == "landscape" and large:
             width, height = 896, 640
         elif aspect_ratio == "landscape" and not large:
-            width, height = 640, 384
+            width, height = 768, 512
         elif aspect_ratio == "portrait" and large:
             width, height = 640, 896
         elif aspect_ratio == "portrait" and not large:
-            width, height = 384, 640
+            width, height = 512, 768
         return width, height
 
     def perm_check(self, ctx):
