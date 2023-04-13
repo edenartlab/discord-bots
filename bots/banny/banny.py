@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 import random
 from dataclasses import dataclass
 from typing import Optional
@@ -21,15 +22,13 @@ from marsbots_eden.eden import poll_creation_queue
 from marsbots_eden.eden import request_creation
 from marsbots_eden.models import SignInCredentials
 from marsbots_eden.models import SourceSettings
-from marsbots_eden.models import DreamBoothBannyConfig
+from marsbots_eden.models import StableDiffusionConfig
 
 from . import config
 from . import settings
 
-#MINIO_URL = "https://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
-MINIO_URL = "https://{}/{}".format(os.getenv("MINIO_URL"), "creations-stg")
-GATEWAY_URL = "https://gateway-test.abraham.ai" # os.getenv("GATEWAY_URL")
-MAGMA_TOKEN = os.getenv("MAGMA_API_KEY")
+
+EDEN_API_URL = "https://api.eden.art" # os.getenv("EDEN_API_URL")
 EDEN_API_KEY = os.getenv("EDEN_API_KEY")
 EDEN_API_SECRET = os.getenv("EDEN_API_SECRET")
 
@@ -41,8 +40,7 @@ ALLOWED_LERP_BACKDOOR_USERS = CONFIG["allowed_channels"]
 
 @dataclass
 class GenerationLoopInput:
-    gateway_url: str
-    minio_url: str
+    api_url: str
     start_bot_message: str
     source: SourceSettings
     config: any
@@ -53,71 +51,11 @@ class GenerationLoopInput:
     parent_message: discord.Message = None
 
 
-
-class CreationActionButtons(discord.ui.View):
-    def __init__(
-        self,
-        *items,
-        bot,
-        creation_sha,
-        refresh_callback,
-        loop_input: GenerationLoopInput,
-        timeout=180,
-    ):
-        super().__init__(*items, timeout=timeout)
-        self.bot = bot
-        self.creation_sha = creation_sha
-        self.refresh_callback = refresh_callback
-        self.loop_input = loop_input
-
-    async def feedback(self, stat, interaction):
-        ctx = await self.bot.get_application_context(interaction)
-        await ctx.defer()
-        requests.post(
-            self.loop_input.gateway_url + "/update_stats",
-            json={
-                "creation": self.creation_sha,
-                "stat": stat,
-                "opperation": "increase",
-                "address": interaction.user.id,
-            },
-        )
-
-    @discord.ui.button(emoji="🔄", style=discord.ButtonStyle.blurple)
-    async def refresh(self, button, interaction):
-        ctx = await self.bot.get_application_context(interaction)
-        await ctx.defer()
-        await self.refresh_callback(
-            loop_input=self.loop_input,
-        )
-
-    # @discord.ui.button(label="Lerp It")
-    # async def lerp(self, button, interaction):
-    #     await interaction.response.send_modal(
-    #         LerpModal(
-    #             title="Lerp It",
-    #             bot=self.bot,
-    #             refresh_callback=self.refresh_callback,
-    #             loop_input=self.loop_input,
-    #         )
-    #     )
-
-    @discord.ui.button(emoji="🔥", style=discord.ButtonStyle.red)
-    async def burn(self, button, interaction):
-        await self.feedback("burn", interaction)
-
-    @discord.ui.button(label="🙌", style=discord.ButtonStyle.green)
-    async def praise(self, button, interaction):
-        await self.feedback("praise", interaction)
-        self.stop()
-
-
 class BannyCog(commands.Cog):
     def __init__(self, bot: commands.bot) -> None:
         self.bot = bot
         self.eden_credentials = SignInCredentials(
-            apiKey=EDEN_API_KEY, 
-            apiSecret=EDEN_API_SECRET
+            apiKey=EDEN_API_KEY, apiSecret=EDEN_API_SECRET
         )
         self.language_model = OpenAIGPT3LanguageModel(
             engine=settings.GPT3_ENGINE,
@@ -125,13 +63,9 @@ class BannyCog(commands.Cog):
             frequency_penalty=settings.GPT3_FREQUENCY_PENALTY,
             presence_penalty=settings.GPT3_PRESENCE_PENALTY,
         )
-        self.magma_model = AlephAlphaModel(
-            AlephAlphaClient(host="https://api.aleph-alpha.com", token=MAGMA_TOKEN),
-            model_name="luminous-extended",
-        )            
 
     @commands.slash_command(guild_ids=ALLOWED_GUILDS)
-    async def dream(
+    async def create(
         self,
         ctx,
         text_input: discord.Option(str, description="Prompt", required=True),
@@ -145,24 +79,25 @@ class BannyCog(commands.Cog):
             required=False,
             default="square",
         ),
-        large: discord.Option(
-            bool,
-            description="Larger resolution, ~2.25x more pixels",
-            required=False,
-            default=False,
-        ),
-        fast: discord.Option(
-            bool,
-            description="Fast generation, possibly some loss of quality",
-            required=False,
-            default=False,
-        ),
+        # large: discord.Option(
+        #     bool,
+        #     description="Larger resolution, ~2.25x more pixels",
+        #     required=False,
+        #     default=False,
+        # ),
+        # fast: discord.Option(
+        #     bool,
+        #     description="Fast generation, possibly some loss of quality",
+        #     required=False,
+        #     default=False,
+        # ),
     ):
-        
+        print("Received create:", text_input)
+
         if not self.perm_check(ctx):
             await ctx.respond("This command is not available in this channel.")
             return
-        
+
         if settings.CONTENT_FILTER_ON:
             if not OpenAIGPT3LanguageModel.content_safe(text_input):
                 await ctx.respond(
@@ -170,38 +105,234 @@ class BannyCog(commands.Cog):
                 )
                 return
 
-        if "banny" not in text_input.lower():
-            await ctx.respond("Please include banny in your prompt.")
-            return
-
         source = self.get_source(ctx)
-        width, height = self.get_dimensions(aspect_ratio, large)
-        steps = 15 if fast else 50
+        large, fast = False, False
+        width, height, upscale_f = self.get_dimensions(aspect_ratio, large, img_mode = True)
+        steps = 30 if fast else 60
 
-        text_input2 = text_input.replace("banny character", "banny")
-        text_input2 = text_input2.replace("banny", "banny character")
-        
-        config = DreamBoothBannyConfig(
-            prompt=text_input2,
-            seed=random.randint(1, 1e8),
-            num_outputs=1,
+        config = StableDiffusionConfig(
+            generator_name="create",
+            text_input=text_input,
             width=width,
             height=height,
-            num_inference_steps=steps,
-            guidance_scale=8
+            steps=steps,
+            guidance_scale=7.5,
+            upscale_f=upscale_f,
+            seed=random.randint(1, 1e8),
         )
 
+        if "banny" in text_input.lower():
+            config.lora = 'Banny1p'
+            config.lora_scale = 0.8
+            config.text_input = re.sub(r'\b(banny)\b', f'<{config.lora}>', text_input, flags=re.IGNORECASE)
+
         start_bot_message = f"**{text_input}** - <@!{ctx.author.id}>\n"
-        await ctx.respond("Starting to dream...")
+        await ctx.respond("Starting to create...")
         message = await ctx.channel.send(start_bot_message)
 
         generation_loop_input = GenerationLoopInput(
-            gateway_url=GATEWAY_URL,
-            minio_url=MINIO_URL,
+            api_url=EDEN_API_URL,
             message=message,
             start_bot_message=start_bot_message,
             source=source,
-            config=config
+            config=config,
+            is_video_request=False
+        )
+        await self.generation_loop(generation_loop_input)
+
+    @commands.slash_command(guild_ids=ALLOWED_GUILDS)
+    async def remix(
+        self,
+        ctx,
+        image1: discord.Option(
+            discord.Attachment, description="Image to remix", required=True
+        ),
+    ):
+        print("Received remix:", image1)
+
+        if not self.perm_check(ctx):
+            await ctx.respond("This command is not available in this channel.")
+            return
+
+        if not image1:
+            await ctx.respond("Please provide an image to remix.")
+            return
+
+        source = self.get_source(ctx)
+
+        steps = 80
+        width, height = 960, 640
+
+        config = StableDiffusionConfig(
+            generator_name="remix",
+            text_input="remix",
+            init_image_data=image1.url,
+            init_image_strength=0.125,
+            width=width,
+            height=height,
+            steps=steps,
+            guidance_scale=7.5,
+            seed=random.randint(1, 1e8)
+        )
+
+        start_bot_message = f"**Remix** by <@!{ctx.author.id}>\n"
+        await ctx.respond("Remixing...")
+        message = await ctx.channel.send(start_bot_message)
+
+        generation_loop_input = GenerationLoopInput(
+            api_url=EDEN_API_URL,
+            message=message,
+            start_bot_message=start_bot_message,
+            source=source,
+            config=config,
+            is_video_request=False,
+            prefer_gif=False
+        )
+        await self.generation_loop(generation_loop_input)
+
+    @commands.slash_command(guild_ids=ALLOWED_GUILDS)
+    async def real2real(
+        self,
+        ctx,
+        image1: discord.Option(
+            discord.Attachment, description="First image", required=True
+        ),
+        image2: discord.Option(
+            discord.Attachment, description="Second image", required=True
+        ),
+    ):
+
+        if not self.perm_check(ctx):
+            await ctx.respond("This command is not available in this channel.")
+            return
+
+        source = self.get_source(ctx)
+
+        if not (image1 and image2):
+            await ctx.respond("Please provide two images to interpolate between.")
+            return
+
+        interpolation_init_images = [image1.url, image2.url]
+
+        interpolation_seeds = [
+            random.randint(1, 1e8) for _ in interpolation_init_images
+        ]
+        n_frames = 60
+        steps = 50
+        width, height = 578, 578
+
+        config = StableDiffusionConfig(
+            generator_name="real2real",
+            stream=True,
+            stream_every=1,
+            text_input="real2real",
+            interpolation_seeds=interpolation_seeds,
+            interpolation_init_images=interpolation_init_images,
+            interpolation_init_images_use_img2txt=True,
+            n_frames=n_frames,
+            loop=False,
+            smooth=True,
+            n_film=1,
+            width=width,
+            height=height,
+            steps=steps,
+            guidance_scale=7.5,
+            scale_modulation=0.1,
+            latent_smoothing_std=0.01,
+            seed=random.randint(1, 1e8),
+            interpolation_init_images_min_strength = 0.3,  # a higher value will make the video smoother, but allows less visual change / journey
+        )
+
+        start_bot_message = f"**Real2Real** by <@!{ctx.author.id}>\n"
+        await ctx.respond("Lerping...")
+        message = await ctx.channel.send(start_bot_message)
+
+        generation_loop_input = GenerationLoopInput(
+            api_url=EDEN_API_URL,
+            message=message,
+            start_bot_message=start_bot_message,
+            source=source,
+            config=config,
+            is_video_request=True,
+            prefer_gif=False,
+        )
+        await self.generation_loop(generation_loop_input)
+
+    @commands.slash_command(guild_ids=ALLOWED_GUILDS)
+    async def lerp(
+        self,
+        ctx,
+        text_input1: discord.Option(str, description="First prompt", required=True),
+        text_input2: discord.Option(str, description="Second prompt", required=True),
+        aspect_ratio: discord.Option(
+            str,
+            choices=[
+                discord.OptionChoice(name="square", value="square"),
+                discord.OptionChoice(name="landscape", value="landscape"),
+                discord.OptionChoice(name="portrait", value="portrait"),
+            ],
+            required=False,
+            default="square",
+        ),
+    ):
+        print("Received lerp:", text_input1, text_input2)
+
+        if not self.perm_check(ctx):
+            await ctx.respond("This command is not available in this channel.")
+            return
+
+        if settings.CONTENT_FILTER_ON:
+            if not OpenAIGPT3LanguageModel.content_safe(
+                text_input1,
+            ) or not OpenAIGPT3LanguageModel.content_safe(text_input2):
+                await ctx.respond(
+                    f"Content filter triggered, <@!{ctx.author.id}>. Please don't make me draw that. If you think it was a mistake, modify your prompt slightly and try again.",
+                )
+                return
+
+        source = self.get_source(ctx)
+
+        interpolation_texts = [text_input1, text_input2]
+        interpolation_seeds = [random.randint(1, 1e8) for _ in interpolation_texts]
+        n_frames = 80
+        steps = 50
+        width, height, upscale_f = self.get_dimensions(aspect_ratio, False, img_mode = False)
+
+        config = StableDiffusionConfig(
+            generator_name="interpolate",
+            stream=True,
+            stream_every=1,
+            text_input=text_input1,
+            interpolation_texts=interpolation_texts,
+            interpolation_seeds=interpolation_seeds,
+            n_frames=n_frames,
+            smooth=True,
+            loop=False,
+            n_film=1,
+            width=width,
+            height=height,
+            sampler="euler",
+            steps=steps,
+            guidance_scale=7.5,
+            scale_modulation=0.1,
+            latent_smoothing_std=0.01,
+            seed=random.randint(1, 1e8),
+        )
+
+        start_bot_message = (
+            f"**{text_input1}** to **{text_input2}** - <@!{ctx.author.id}>\n"
+        )
+        await ctx.respond("Lerping...")
+        message = await ctx.channel.send(start_bot_message)
+
+        generation_loop_input = GenerationLoopInput(
+            api_url=EDEN_API_URL,
+            message=message,
+            start_bot_message=start_bot_message,
+            source=source,
+            config=config,
+            is_video_request=True,
+            prefer_gif=False,
         )
         await self.generation_loop(generation_loop_input)
 
@@ -209,8 +340,7 @@ class BannyCog(commands.Cog):
         self,
         loop_input: GenerationLoopInput,
     ):
-        gateway_url = loop_input.gateway_url
-        minio_url = loop_input.minio_url
+        api_url = loop_input.api_url
         start_bot_message = loop_input.start_bot_message
         parent_message = loop_input.parent_message
         message = loop_input.message
@@ -221,34 +351,26 @@ class BannyCog(commands.Cog):
         prefer_gif = loop_input.prefer_gif
 
         try:
-            task_id = await request_creation(gateway_url, self.eden_credentials, source, config)
+            task_id = await request_creation(
+                api_url, self.eden_credentials, source, config
+            )
+            current_output_url = None
             while True:
-                result, file, sha = await poll_creation_queue(
-                    gateway_url,
-                    minio_url,
-                    task_id,
-                    is_video_request,
-                    prefer_gif
+                result, file, output_url = await poll_creation_queue(
+                    api_url, self.eden_credentials, task_id, is_video_request, prefer_gif
                 )
-                message_update = self.get_message_update(result)
-                await self.edit_message(
-                    message,
-                    start_bot_message,
-                    message_update,
-                    file_update=file,
-                )
-                if result["status"] == "complete":
-                    file, sha = await get_file_update(
-                        result,
-                        minio_url,
-                        is_video_request,
-                        prefer_gif
+                if output_url != current_output_url:
+                    output_url = current_output_url
+                    message_update = self.get_message_update(result)
+                    await self.edit_message(
+                        message,
+                        start_bot_message,
+                        message_update,
+                        file_update=file,
                     )
-                    view = CreationActionButtons(
-                        bot=self.bot,
-                        creation_sha=sha,
-                        loop_input=loop_input,
-                        refresh_callback=self.refresh_callback,
+                if result["status"] == "completed":
+                    file, output_url = await get_file_update(
+                        result, is_video_request, prefer_gif
                     )
                     if parent_message:
                         new_message = await parent_message.reply(
@@ -262,7 +384,7 @@ class BannyCog(commands.Cog):
                             files=[file],
                             view=None,
                         )
-                    view.loop_input.parent_message = new_message
+                    #view.loop_input.parent_message = new_message
                     await message.delete()
                     return
                 await asyncio.sleep(refresh_interval)
@@ -292,31 +414,13 @@ class BannyCog(commands.Cog):
             ):
                 return
 
-            trigger_reply = is_mentioned(message, self.bot.user) and message.attachments
-            
+            trigger_reply = False # is_mentioned(message, self.bot.user) and message.attachments
+
             if trigger_reply:
                 ctx = await self.bot.get_context(message)
                 async with ctx.channel.typing():
                     prompt = self.message_preprocessor(message)
-                    stop_sequences = []
-                    if prompt:
-                        text_input = 'Question: "{}"\nAnswer:'.format(prompt)
-                        stop_sequences = ["Question:"]
-                        prefix = ""
-                    else:
-                        text_input = "This is a picture of "
-                        prefix = text_input
-                    url = message.attachments[0].url
-                    image = ImagePrompt.from_url(url)
-                    magma_prompt = Prompt([image, text_input])
-                    request = CompletionRequest(
-                        prompt=magma_prompt,
-                        maximum_tokens=100,
-                        temperature=0.5,
-                        stop_sequences=stop_sequences,
-                    )
-                    result = self.magma_model.complete(request)
-                    response = prefix + result.completions[0].completion.strip(' "')
+                    response = ":)"
                     await message.reply(response)
 
         except Exception as e:
@@ -332,20 +436,15 @@ class BannyCog(commands.Cog):
         message_content = message_content.strip()
         return message_content
 
-    def get_dimensions(self, aspect_ratio, large):
-        if aspect_ratio == "square" and large:
+    def get_dimensions(self, aspect_ratio, large, img_mode = True):
+        if aspect_ratio == "square":
             width, height = 768, 768
-        elif aspect_ratio == "square" and not large:
-            width, height = 512, 512
-        elif aspect_ratio == "landscape" and large:
-            width, height = 896, 640
-        elif aspect_ratio == "landscape" and not large:
-            width, height = 640, 384
-        elif aspect_ratio == "portrait" and large:
-            width, height = 640, 896
-        elif aspect_ratio == "portrait" and not large:
-            width, height = 384, 640
-        return width, height
+        elif aspect_ratio == "landscape":
+            width, height = 960, 640
+        elif aspect_ratio == "portrait":
+            width, height = 640, 960
+        upscale_f = 1.4 if large and img_mode else 1.0
+        return width, height, upscale_f
 
     def perm_check(self, ctx):
         if ctx.channel.id not in ALLOWED_CHANNELS:
@@ -401,6 +500,7 @@ class BannyCog(commands.Cog):
         await message.edit(content=message_content)
         if file_update:
             await message.edit(files=[file_update], attachments=[])
+
 
 def setup(bot: commands.Bot) -> None:
     bot.add_cog(BannyCog(bot))

@@ -27,10 +27,7 @@ from . import config
 from . import settings
 
 
-# MINIO_URL = "https://{}/{}".format(os.getenv("MINIO_URL"), os.getenv("BUCKET_NAME"))
-MINIO_URL = "https://{}/{}".format(os.getenv("MINIO_URL"), "creations-stg")
-GATEWAY_URL = "https://gateway-test.abraham.ai"  # os.getenv("GATEWAY_URL")
-MAGMA_TOKEN = os.getenv("MAGMA_API_KEY")
+EDEN_API_URL = "https://api.eden.art" # os.getenv("EDEN_API_URL")
 EDEN_API_KEY = os.getenv("EDEN_API_KEY")
 EDEN_API_SECRET = os.getenv("EDEN_API_SECRET")
 
@@ -42,8 +39,7 @@ ALLOWED_LERP_BACKDOOR_USERS = CONFIG["allowed_channels"]
 
 @dataclass
 class GenerationLoopInput:
-    gateway_url: str
-    minio_url: str
+    api_url: str
     start_bot_message: str
     source: SourceSettings
     config: any
@@ -73,13 +69,13 @@ class LerpModal(discord.ui.Modal):
         interpolation_seeds = [seed1, seed2]
         width = self.loop_input.config.width
         height = self.loop_input.config.height
-        n_frames = 32
+        n_frames = 60
         steps = self.loop_input.config.steps
         self.loop_input.config = StableDiffusionConfig(
-            mode="interpolate",
+            generator_name="interpolate",
             stream=True,
             stream_every=1,
-            text_input=text_input1,
+            text_input=[f'{text_input1} to {text_input2}'],
             interpolation_texts=interpolation_texts,
             interpolation_seeds=interpolation_seeds,
             n_frames=n_frames,
@@ -96,24 +92,25 @@ class CreationActionButtons(discord.ui.View):
         self,
         *items,
         bot,
-        creation_sha,
+        output_url,
         refresh_callback,
         loop_input: GenerationLoopInput,
         timeout=180,
     ):
         super().__init__(*items, timeout=timeout)
         self.bot = bot
-        self.creation_sha = creation_sha
+        self.output_url = output_url
         self.refresh_callback = refresh_callback
         self.loop_input = loop_input
 
+    # this needs to be adapted to api reactions
     async def feedback(self, stat, interaction):
         ctx = await self.bot.get_application_context(interaction)
         await ctx.defer()
         requests.post(
-            self.loop_input.gateway_url + "/update_stats",
+            self.loop_input.api_url + "/update_stats",
             json={
-                "creation": self.creation_sha,
+                "creation": self.output_url,
                 "stat": stat,
                 "opperation": "increase",
                 "address": interaction.user.id,
@@ -161,13 +158,9 @@ class EdenCog(commands.Cog):
             frequency_penalty=settings.GPT3_FREQUENCY_PENALTY,
             presence_penalty=settings.GPT3_PRESENCE_PENALTY,
         )
-        # self.magma_model = AlephAlphaModel(
-        #     AlephAlphaClient(host="https://api.aleph-alpha.com", token=MAGMA_TOKEN),
-        #     model_name="luminous-extended",
-        # )
 
     @commands.slash_command(guild_ids=ALLOWED_GUILDS)
-    async def dream(
+    async def create(
         self,
         ctx,
         text_input: discord.Option(str, description="Prompt", required=True),
@@ -181,21 +174,20 @@ class EdenCog(commands.Cog):
             required=False,
             default="square",
         ),
-        large: discord.Option(
-            bool,
-            description="Larger resolution, ~2.25x more pixels",
-            required=False,
-            default=False,
-        ),
-        fast: discord.Option(
-            bool,
-            description="Fast generation, possibly some loss of quality",
-            required=False,
-            default=False,
-        ),
+        # large: discord.Option(
+        #     bool,
+        #     description="Larger resolution, ~2.25x more pixels",
+        #     required=False,
+        #     default=False,
+        # ),
+        # fast: discord.Option(
+        #     bool,
+        #     description="Fast generation, possibly some loss of quality",
+        #     required=False,
+        #     default=False,
+        # ),
     ):
-
-        print("Received dream:", text_input)
+        print("Received create:", text_input)
 
         if not self.perm_check(ctx):
             await ctx.respond("This command is not available in this channel.")
@@ -209,34 +201,32 @@ class EdenCog(commands.Cog):
                 return
 
         source = self.get_source(ctx)
+        large, fast = False, False
         width, height, upscale_f = self.get_dimensions(aspect_ratio, large, img_mode = True)
         steps = 30 if fast else 60
 
         config = StableDiffusionConfig(
-            mode="generate",
-            stream=True,
-            stream_every=4,
+            generator_name="create",
             text_input=text_input,
-            sampler="euler_ancestral",
-            uc_text="poorly drawn face, ugly, tiling, out of frame, extra limbs, disfigured, deformed body, blurry, blurred, watermark, text, grainy, signature, cut off, draft",
             width=width,
             height=height,
             steps=steps,
+            guidance_scale=7.5,
             upscale_f=upscale_f,
             seed=random.randint(1, 1e8),
         )
 
         start_bot_message = f"**{text_input}** - <@!{ctx.author.id}>\n"
-        await ctx.respond("Starting to dream...")
+        await ctx.respond("Starting to create...")
         message = await ctx.channel.send(start_bot_message)
 
         generation_loop_input = GenerationLoopInput(
-            gateway_url=GATEWAY_URL,
-            minio_url=MINIO_URL,
+            api_url=EDEN_API_URL,
             message=message,
             start_bot_message=start_bot_message,
             source=source,
             config=config,
+            is_video_request=False
         )
         await self.generation_loop(generation_loop_input)
 
@@ -248,7 +238,6 @@ class EdenCog(commands.Cog):
             discord.Attachment, description="Image to remix", required=True
         ),
     ):
-
         print("Received remix:", image1)
 
         if not self.perm_check(ctx):
@@ -261,20 +250,18 @@ class EdenCog(commands.Cog):
 
         source = self.get_source(ctx)
 
-        steps = 100
-        width, height = 1280, 720
+        steps = 80
+        width, height = 960, 640
 
         config = StableDiffusionConfig(
-            mode="remix",
-            stream=True,
-            stream_every=1,
+            generator_name="remix",
             text_input="remix",
-            uc_text="poorly drawn face, ugly, tiling, out of frame, extra limbs, disfigured, deformed body, blurry, blurred, watermark, text, grainy, signature, cut off, draft",
             init_image_data=image1.url,
+            init_image_strength=0.125,
             width=width,
             height=height,
-            sampler="euler_ancestral", 
             steps=steps,
+            guidance_scale=7.5,
             seed=random.randint(1, 1e8)
         )
 
@@ -283,8 +270,7 @@ class EdenCog(commands.Cog):
         message = await ctx.channel.send(start_bot_message)
 
         generation_loop_input = GenerationLoopInput(
-            gateway_url=GATEWAY_URL,
-            minio_url=MINIO_URL,
+            api_url=EDEN_API_URL,
             message=message,
             start_bot_message=start_bot_message,
             source=source,
@@ -321,16 +307,15 @@ class EdenCog(commands.Cog):
         interpolation_seeds = [
             random.randint(1, 1e8) for _ in interpolation_init_images
         ]
-        n_frames = 36
+        n_frames = 60
         steps = 50
         width, height = 578, 578
 
         config = StableDiffusionConfig(
-            mode="interpolate",
+            generator_name="real2real",
             stream=True,
             stream_every=1,
             text_input="real2real",
-            uc_text="poorly drawn face, ugly, tiling, out of frame, extra limbs, disfigured, deformed body, blurry, blurred, watermark, text, grainy, signature, cut off, draft",
             interpolation_seeds=interpolation_seeds,
             interpolation_init_images=interpolation_init_images,
             interpolation_init_images_use_img2txt=True,
@@ -340,9 +325,8 @@ class EdenCog(commands.Cog):
             n_film=1,
             width=width,
             height=height,
-            sampler="klms",
             steps=steps,
-            scale=12,
+            guidance_scale=7.5,
             scale_modulation=0.1,
             latent_smoothing_std=0.01,
             seed=random.randint(1, 1e8),
@@ -354,8 +338,7 @@ class EdenCog(commands.Cog):
         message = await ctx.channel.send(start_bot_message)
 
         generation_loop_input = GenerationLoopInput(
-            gateway_url=GATEWAY_URL,
-            minio_url=MINIO_URL,
+            api_url=EDEN_API_URL,
             message=message,
             start_bot_message=start_bot_message,
             source=source,
@@ -382,7 +365,6 @@ class EdenCog(commands.Cog):
             default="square",
         ),
     ):
-
         print("Received lerp:", text_input1, text_input2)
 
         if not self.perm_check(ctx):
@@ -402,16 +384,15 @@ class EdenCog(commands.Cog):
 
         interpolation_texts = [text_input1, text_input2]
         interpolation_seeds = [random.randint(1, 1e8) for _ in interpolation_texts]
-        n_frames = 36
+        n_frames = 80
         steps = 50
         width, height, upscale_f = self.get_dimensions(aspect_ratio, False, img_mode = False)
 
         config = StableDiffusionConfig(
-            mode="interpolate",
+            generator_name="interpolate",
             stream=True,
             stream_every=1,
             text_input=text_input1,
-            uc_text="poorly drawn face, ugly, tiling, out of frame, extra limbs, disfigured, deformed body, blurry, blurred, watermark, text, grainy, signature, cut off, draft",
             interpolation_texts=interpolation_texts,
             interpolation_seeds=interpolation_seeds,
             n_frames=n_frames,
@@ -420,9 +401,9 @@ class EdenCog(commands.Cog):
             n_film=1,
             width=width,
             height=height,
-            sampler="klms",
+            sampler="euler",
             steps=steps,
-            scale=12,
+            guidance_scale=7.5,
             scale_modulation=0.1,
             latent_smoothing_std=0.01,
             seed=random.randint(1, 1e8),
@@ -435,8 +416,7 @@ class EdenCog(commands.Cog):
         message = await ctx.channel.send(start_bot_message)
 
         generation_loop_input = GenerationLoopInput(
-            gateway_url=GATEWAY_URL,
-            minio_url=MINIO_URL,
+            api_url=EDEN_API_URL,
             message=message,
             start_bot_message=start_bot_message,
             source=source,
@@ -450,8 +430,7 @@ class EdenCog(commands.Cog):
         self,
         loop_input: GenerationLoopInput,
     ):
-        gateway_url = loop_input.gateway_url
-        minio_url = loop_input.minio_url
+        api_url = loop_input.api_url
         start_bot_message = loop_input.start_bot_message
         parent_message = loop_input.parent_message
         message = loop_input.message
@@ -463,15 +442,15 @@ class EdenCog(commands.Cog):
 
         try:
             task_id = await request_creation(
-                gateway_url, self.eden_credentials, source, config
+                api_url, self.eden_credentials, source, config
             )
-            current_sha = None
+            current_output_url = None
             while True:
-                result, file, sha = await poll_creation_queue(
-                    gateway_url, minio_url, task_id, is_video_request, prefer_gif
+                result, file, output_url = await poll_creation_queue(
+                    api_url, self.eden_credentials, task_id, is_video_request, prefer_gif
                 )
-                if sha != current_sha:
-                    current_sha = sha
+                if output_url != current_output_url:
+                    output_url = current_output_url
                     message_update = self.get_message_update(result)
                     await self.edit_message(
                         message,
@@ -479,13 +458,13 @@ class EdenCog(commands.Cog):
                         message_update,
                         file_update=file,
                     )
-                if result["status"] == "complete":
-                    file, sha = await get_file_update(
-                        result, minio_url, is_video_request, prefer_gif
+                if result["status"] == "completed":
+                    file, output_url = await get_file_update(
+                        result, is_video_request, prefer_gif
                     )
                     view = CreationActionButtons(
                         bot=self.bot,
-                        creation_sha=sha,
+                        output_url=output_url,
                         loop_input=loop_input,
                         refresh_callback=self.refresh_callback,
                     )
@@ -531,31 +510,13 @@ class EdenCog(commands.Cog):
             ):
                 return
 
-            trigger_reply = is_mentioned(message, self.bot.user) and message.attachments
+            trigger_reply = False # is_mentioned(message, self.bot.user) and message.attachments
 
             if trigger_reply:
                 ctx = await self.bot.get_context(message)
                 async with ctx.channel.typing():
                     prompt = self.message_preprocessor(message)
-                    stop_sequences = []
-                    if prompt:
-                        text_input = 'Question: "{}"\nAnswer:'.format(prompt)
-                        stop_sequences = ["Question:"]
-                        prefix = ""
-                    else:
-                        text_input = "This is a picture of "
-                        prefix = text_input
-                    url = message.attachments[0].url
-                    image = ImagePrompt.from_url(url)
-                    magma_prompt = Prompt([image, text_input])
-                    request = CompletionRequest(
-                        prompt=magma_prompt,
-                        maximum_tokens=100,
-                        temperature=0.5,
-                        stop_sequences=stop_sequences,
-                    )
-                    result = self.magma_model.complete(request)
-                    response = prefix + result.completions[0].completion.strip(' "')
+                    response = ":)"
                     await message.reply(response)
 
         except Exception as e:
@@ -572,26 +533,13 @@ class EdenCog(commands.Cog):
         return message_content
 
     def get_dimensions(self, aspect_ratio, large, img_mode = True):
-        if img_mode:
-            if aspect_ratio == "square":
-                width, height = 768, 768
-            elif aspect_ratio == "landscape":
-                width, height = 832, 512
-            elif aspect_ratio == "portrait":
-                width, height = 512, 832
-        else: # video mode:
-            if aspect_ratio == "square":
-                width, height = 640, 640
-            elif aspect_ratio == "landscape":
-                width, height = 768, 512
-            elif aspect_ratio == "portrait":
-                width, height = 512, 768
-                
-        if large and img_mode:
-            upscale_f = 1.4
-        else:
-            upscale_f = 1.0
-            
+        if aspect_ratio == "square":
+            width, height = 768, 768
+        elif aspect_ratio == "landscape":
+            width, height = 960, 640
+        elif aspect_ratio == "portrait":
+            width, height = 640, 960
+        upscale_f = 1.4 if large and img_mode else 1.0
         return width, height, upscale_f
 
     def perm_check(self, ctx):
