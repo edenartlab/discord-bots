@@ -414,7 +414,7 @@ class HuaqiangbeiCog(commands.Cog):
                     new_message = await channel.send(start_bot_message)
                     generation_loop_input = GenerationLoopInput(
                         api_url=EDEN_API_URL,
-                        message=message,
+                        message=new_message,
                         start_bot_message=start_bot_message,
                         source=source,
                         config=config,
