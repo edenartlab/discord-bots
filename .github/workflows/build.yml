@@ -92,7 +92,7 @@ jobs:
         with:
           repository: abraham-ai/releases
           ref: main
-          token: ${{ secrets.ONE1ZERO1ONE_PAT }}
+          token: ${{ secrets.GENEKOGAN_PAT }}
 
       # Deploy-Step-0-prep-variables
       - run: |
@@ -124,7 +124,7 @@ jobs:
           commitChange: true
           createPR: false
           message: "Update ${{ secrets.ENV }} Image Version to ${{ steps.prep.outputs.tagged_image }}"
-          token: ${{ secrets.ONE1ZERO1ONE_PAT }}
+          token: ${{ secrets.GENEKOGAN_PAT }}
       - run: |
           buildevents step $TRACE_ID $STEP_ID $STEP_START 'bump-up-${{ secrets.ENV }}'
       - name: Discord notification
