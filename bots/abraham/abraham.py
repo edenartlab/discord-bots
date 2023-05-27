@@ -83,12 +83,13 @@ class Abraham(commands.Cog):
             if trigger_reply:
                 ctx = await self.bot.get_context(message)
                 async with ctx.channel.typing():
-                    prompt = await self.format_prompt(ctx, message)
+                    chat = await self.get_chat_messages(ctx, message)
+                    #prompt = await self.format_prompt(ctx, message)
                     completion = await complete_text(
                         self.language_model,
-                        prompt,
-                        max_tokens=80,
-                        stop=["<", "\n\n"],
+                        chat,
+                        max_tokens=200,
+                        stop=["\n\n", "\n"],
                         use_content_filter=True,
                     )
                     await message.reply(completion.strip())
@@ -103,6 +104,28 @@ class Abraham(commands.Cog):
         message_content = message_content.strip()
         return message_content
 
+    async def get_chat_messages(
+        self,
+        ctx: commands.context,
+        message: discord.Message,
+    ) -> str:
+        last_messages = await get_discord_messages(ctx.channel, 1)
+        reply_chain = await get_reply_chain(ctx, message, depth=8)
+        chat = [{
+            "role": "system", 
+            "content": settings.MANIFEST
+        }]
+        for reply in reply_chain + last_messages:
+            if reply.author.id == self.bot.user.id:
+                sender_name = "assistant" # reply.author.name
+            else:
+                sender_name = "user"
+            chat.append({
+                'role': sender_name,
+                'content': self.message_preprocessor(reply) 
+            })
+        return chat
+
     async def format_prompt(
         self,
         ctx: commands.context,
@@ -112,7 +135,7 @@ class Abraham(commands.Cog):
         topic_idx = 0 #self.get_similar_topic_idx(last_message_content)
         topic_prefix = prompts.topics[topic_idx]["prefix"]
         last_messages = await get_discord_messages(ctx.channel, 1)
-        reply_chain = await get_reply_chain(ctx, message, depth=6)
+        reply_chain = await get_reply_chain(ctx, message, depth=8)
         if reply_chain:
             reply_chain = self.format_reply_chain(reply_chain)
         last_message_text = str(
