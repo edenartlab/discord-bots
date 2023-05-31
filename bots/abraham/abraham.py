@@ -83,11 +83,11 @@ class Abraham(commands.Cog):
             if trigger_reply:
                 ctx = await self.bot.get_context(message)
                 async with ctx.channel.typing():
-                    chat = await self.get_chat_messages(ctx, message)
-                    #prompt = await self.format_prompt(ctx, message)
+                    #chat = await self.get_chat_messages(ctx, message)
+                    prompt = await self.format_prompt(ctx, message)
                     completion = await complete_text(
                         self.language_model,
-                        chat,
+                        prompt, #chat
                         max_tokens=200,
                         stop=["\n\n", "\n"],
                         use_content_filter=True,
