@@ -6,11 +6,11 @@ from typing import Optional
 
 import discord
 import requests
-from aleph_alpha_client import AlephAlphaClient
-from aleph_alpha_client import AlephAlphaModel
-from aleph_alpha_client import CompletionRequest
-from aleph_alpha_client import ImagePrompt
-from aleph_alpha_client import Prompt
+# from aleph_alpha_client import AlephAlphaClient
+# from aleph_alpha_client import AlephAlphaModel
+# from aleph_alpha_client import CompletionRequest
+# from aleph_alpha_client import ImagePrompt
+# from aleph_alpha_client import Prompt
 from discord.ext import commands
 from marsbots.discord_utils import is_mentioned
 from marsbots.discord_utils import replace_bot_mention
@@ -625,8 +625,9 @@ class ComicsDAO(commands.Cog):
         message_update: str,
         file_update: Optional[discord.File] = None,
     ) -> discord.Message:
-        message_content = f"{start_bot_message}\n{message_update}"
-        await message.edit(content=message_content)
+        if message_update is not None:
+            message_content = f"{start_bot_message}\n{message_update}"
+            await message.edit(content=message_content)
         if file_update:
             await message.edit(files=[file_update], attachments=[])
 
