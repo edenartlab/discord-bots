@@ -69,7 +69,7 @@ class LerpModal(discord.ui.Modal):
         interpolation_seeds = [seed1, seed2]
         width = self.loop_input.config.width
         height = self.loop_input.config.height
-        n_frames = 60
+        n_frames = 50
         steps = self.loop_input.config.steps
         self.loop_input.config = StableDiffusionConfig(
             generator_name="interpolate",
@@ -203,7 +203,7 @@ class EdenCog(commands.Cog):
         source = self.get_source(ctx)
         large, fast = False, False
         width, height, upscale_f = self.get_dimensions(aspect_ratio, large, img_mode = True)
-        steps = 30 if fast else 60
+        steps = 40 if fast else 60
 
         config = StableDiffusionConfig(
             generator_name="create",
@@ -250,8 +250,8 @@ class EdenCog(commands.Cog):
 
         source = self.get_source(ctx)
 
-        steps = 80
-        width, height = 960, 640
+        steps = 50
+        width, height = 1024, 1024
 
         config = StableDiffusionConfig(
             generator_name="remix",
@@ -307,9 +307,9 @@ class EdenCog(commands.Cog):
         interpolation_seeds = [
             random.randint(1, 1e8) for _ in interpolation_init_images
         ]
-        n_frames = 60
-        steps = 50
-        width, height = 578, 578
+        n_frames = 50
+        steps = 40
+        width, height = 1024, 1024
 
         config = StableDiffusionConfig(
             generator_name="real2real",
@@ -320,15 +320,13 @@ class EdenCog(commands.Cog):
             interpolation_init_images=interpolation_init_images,
             interpolation_init_images_use_img2txt=True,
             n_frames=n_frames,
-            loop=False,
+            loop=True,
             smooth=True,
             n_film=1,
             width=width,
             height=height,
             steps=steps,
-            guidance_scale=7.5,
-            scale_modulation=0.1,
-            latent_smoothing_std=0.01,
+            guidance_scale=6.5,
             seed=random.randint(1, 1e8),
             interpolation_init_images_min_strength = 0.3,  # a higher value will make the video smoother, but allows less visual change / journey
         )
@@ -384,8 +382,8 @@ class EdenCog(commands.Cog):
 
         interpolation_texts = [text_input1, text_input2]
         interpolation_seeds = [random.randint(1, 1e8) for _ in interpolation_texts]
-        n_frames = 80
-        steps = 50
+        n_frames = 50
+        steps = 40
         width, height, upscale_f = self.get_dimensions(aspect_ratio, False, img_mode = False)
 
         config = StableDiffusionConfig(
@@ -397,15 +395,13 @@ class EdenCog(commands.Cog):
             interpolation_seeds=interpolation_seeds,
             n_frames=n_frames,
             smooth=True,
-            loop=False,
+            loop=True,
             n_film=1,
             width=width,
             height=height,
             sampler="euler",
             steps=steps,
             guidance_scale=7.5,
-            scale_modulation=0.1,
-            latent_smoothing_std=0.01,
             seed=random.randint(1, 1e8),
         )
 
@@ -534,11 +530,11 @@ class EdenCog(commands.Cog):
 
     def get_dimensions(self, aspect_ratio, large, img_mode = True):
         if aspect_ratio == "square":
-            width, height = 768, 768
+            width, height = 1024, 1024
         elif aspect_ratio == "landscape":
-            width, height = 960, 640
+            width, height = 1024+512, 1024
         elif aspect_ratio == "portrait":
-            width, height = 640, 960
+            width, height = 1024, 1024+512
         upscale_f = 1.4 if large and img_mode else 1.0
         return width, height, upscale_f
 
