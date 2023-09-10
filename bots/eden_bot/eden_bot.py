@@ -517,7 +517,7 @@ class EdenCog(commands.Cog):
 
         except Exception as e:
             print(f"Error: {e}")
-            await message.reply(":)")
+            await message.reply(":) ")
 
     def message_preprocessor(self, message: discord.Message) -> str:
         message_content = replace_bot_mention(message.content, only_first=True)
