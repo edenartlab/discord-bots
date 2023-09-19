@@ -92,7 +92,7 @@ class BannyCog(commands.Cog):
         #     default=False,
         # ),
     ):
-        print("Received create for Banny:", text_input)
+        print("Received create for Banny :", text_input)
 
         if not self.perm_check(ctx):
             await ctx.respond("This command is not available in this channel.")
@@ -124,12 +124,6 @@ class BannyCog(commands.Cog):
         if "banny" in text_input.lower():
             config.lora = '6509cd50762edacfc4ef8434'
             config.lora_scale = 0.8
-
-
-        print("Y 22 O!!!")
-        print(config)
-        print("seed")
-        print(config.seed)
 
         start_bot_message = f"**{text_input}** - <@!{ctx.author.id}>\n"
         await ctx.respond("Starting to create...")

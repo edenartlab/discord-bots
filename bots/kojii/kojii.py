@@ -92,7 +92,7 @@ class KojiiCog(commands.Cog):
         #     default=False,
         # ),
     ):
-        print("Received create for Kojii:", text_input)
+        print("Received create for Kojii :", text_input)
 
         if not self.perm_check(ctx):
             await ctx.respond("This command is not available in this channel.")
