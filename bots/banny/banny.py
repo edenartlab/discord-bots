@@ -92,7 +92,7 @@ class BannyCog(commands.Cog):
         #     default=False,
         # ),
     ):
-        print("Received create:", text_input)
+        print("Received create for Banny:", text_input)
 
         if not self.perm_check(ctx):
             await ctx.respond("This command is not available in this channel.")
@@ -107,8 +107,8 @@ class BannyCog(commands.Cog):
 
         source = self.get_source(ctx)
         large, fast = False, False
-        width, height, upscale_f = self.get_dimensions(aspect_ratio, large, img_mode = True)
-        steps = 30 if fast else 60
+        width, height, upscale_f = self.get_dimensions(aspect_ratio, large)
+        steps = 15 if fast else 40
 
         config = StableDiffusionConfig(
             generator_name="create",
@@ -122,9 +122,14 @@ class BannyCog(commands.Cog):
         )
 
         if "banny" in text_input.lower():
-            config.lora = 'Banny1p'
+            config.lora = '6509cd50762edacfc4ef8434'
             config.lora_scale = 0.8
-            config.text_input = re.sub(r'\b(banny)\b', f'<{config.lora}>', text_input, flags=re.IGNORECASE)
+
+
+        print("Y 22 O!!!")
+        print(config)
+        print("seed")
+        print(config.seed)
 
         start_bot_message = f"**{text_input}** - <@!{ctx.author.id}>\n"
         await ctx.respond("Starting to create...")
@@ -160,8 +165,8 @@ class BannyCog(commands.Cog):
 
         source = self.get_source(ctx)
 
-        steps = 80
-        width, height = 960, 640
+        steps = 50
+        width, height = 1024, 1024
 
         config = StableDiffusionConfig(
             generator_name="remix",
@@ -174,6 +179,9 @@ class BannyCog(commands.Cog):
             guidance_scale=7.5,
             seed=random.randint(1, 1e8)
         )
+
+        config.lora = '6509cd50762edacfc4ef8434'
+        config.lora_scale = 0.8
 
         start_bot_message = f"**Remix** by <@!{ctx.author.id}>\n"
         await ctx.respond("Remixing...")
@@ -218,8 +226,8 @@ class BannyCog(commands.Cog):
             random.randint(1, 1e8) for _ in interpolation_init_images
         ]
         n_frames = 60
-        steps = 50
-        width, height = 578, 578
+        steps = 40
+        width, height = 768, 768
 
         config = StableDiffusionConfig(
             generator_name="real2real",
@@ -237,11 +245,12 @@ class BannyCog(commands.Cog):
             height=height,
             steps=steps,
             guidance_scale=7.5,
-            scale_modulation=0.1,
-            latent_smoothing_std=0.01,
             seed=random.randint(1, 1e8),
             interpolation_init_images_min_strength = 0.3,  # a higher value will make the video smoother, but allows less visual change / journey
         )
+
+        config.lora = '6509cd50762edacfc4ef8434'
+        config.lora_scale = 0.8
 
         start_bot_message = f"**Real2Real** by <@!{ctx.author.id}>\n"
         await ctx.respond("Lerping...")
@@ -295,8 +304,8 @@ class BannyCog(commands.Cog):
         interpolation_texts = [text_input1, text_input2]
         interpolation_seeds = [random.randint(1, 1e8) for _ in interpolation_texts]
         n_frames = 80
-        steps = 50
-        width, height, upscale_f = self.get_dimensions(aspect_ratio, False, img_mode = False)
+        steps = 40
+        width, height, upscale_f = self.get_video_dimensions(aspect_ratio, False)
 
         config = StableDiffusionConfig(
             generator_name="interpolate",
@@ -314,10 +323,12 @@ class BannyCog(commands.Cog):
             sampler="euler",
             steps=steps,
             guidance_scale=7.5,
-            scale_modulation=0.1,
-            latent_smoothing_std=0.01,
             seed=random.randint(1, 1e8),
         )
+
+        if "banny" in interpolation_texts[0].lower() or "banny" in interpolation_texts[1].lower():
+            config.lora = '6509cd50762edacfc4ef8434'
+            config.lora_scale = 0.8
 
         start_bot_message = (
             f"**{text_input1}** to **{text_input2}** - <@!{ctx.author.id}>\n"
@@ -436,14 +447,24 @@ class BannyCog(commands.Cog):
         message_content = message_content.strip()
         return message_content
 
-    def get_dimensions(self, aspect_ratio, large, img_mode = True):
+    def get_video_dimensions(self, aspect_ratio):
+        if aspect_ratio == "square":
+            width, height = 1024, 1024
+        elif aspect_ratio == "landscape":
+            width, height = 1280, 768
+        elif aspect_ratio == "portrait":
+            width, height = 768, 1280
+        upscale_f = 1.0
+        return width, height, upscale_f
+
+    def get_dimensions(self, aspect_ratio, large):
         if aspect_ratio == "square":
             width, height = 768, 768
         elif aspect_ratio == "landscape":
             width, height = 960, 640
         elif aspect_ratio == "portrait":
             width, height = 640, 960
-        upscale_f = 1.4 if large and img_mode else 1.0
+        upscale_f = 1.4 if large else 1.0
         return width, height, upscale_f
 
     def perm_check(self, ctx):

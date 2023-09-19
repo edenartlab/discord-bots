@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 import random
 from dataclasses import dataclass
 from typing import Optional
@@ -50,103 +51,7 @@ class GenerationLoopInput:
     parent_message: discord.Message = None
 
 
-class LerpModal(discord.ui.Modal):
-    def __init__(self, bot, refresh_callback, loop_input, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self.bot = bot
-        self.refresh_callback = refresh_callback
-        self.loop_input = loop_input
-        self.add_item(discord.ui.InputText(label="Short Input"))
-
-    async def callback(self, interaction: discord.Interaction):
-        ctx = await self.bot.get_application_context(interaction)
-        await ctx.defer()
-        text_input1 = self.loop_input.config.text_input
-        text_input2 = self.children[0].value
-        interpolation_texts = [text_input1, text_input2]
-        seed1 = self.loop_input.config.seed
-        seed2 = random.randint(1, 1e8)
-        interpolation_seeds = [seed1, seed2]
-        width = self.loop_input.config.width
-        height = self.loop_input.config.height
-        n_frames = 50
-        steps = self.loop_input.config.steps
-        self.loop_input.config = StableDiffusionConfig(
-            generator_name="interpolate",
-            stream=True,
-            stream_every=1,
-            text_input=[f'{text_input1} to {text_input2}'],
-            interpolation_texts=interpolation_texts,
-            interpolation_seeds=interpolation_seeds,
-            n_frames=n_frames,
-            width=width,
-            height=height,
-            steps=steps,
-        )
-        self.loop_input.is_video_request = True
-        await self.refresh_callback(loop_input=self.loop_input, reroll_seed=False)
-
-
-class CreationActionButtons(discord.ui.View):
-    def __init__(
-        self,
-        *items,
-        bot,
-        output_url,
-        refresh_callback,
-        loop_input: GenerationLoopInput,
-        timeout=180,
-    ):
-        super().__init__(*items, timeout=timeout)
-        self.bot = bot
-        self.output_url = output_url
-        self.refresh_callback = refresh_callback
-        self.loop_input = loop_input
-
-    # this needs to be adapted to api reactions
-    async def feedback(self, stat, interaction):
-        ctx = await self.bot.get_application_context(interaction)
-        await ctx.defer()
-        requests.post(
-            self.loop_input.api_url + "/update_stats",
-            json={
-                "creation": self.output_url,
-                "stat": stat,
-                "opperation": "increase",
-                "address": interaction.user.id,
-            },
-        )
-
-    @discord.ui.button(emoji="🔄", style=discord.ButtonStyle.blurple)
-    async def refresh(self, button, interaction):
-        ctx = await self.bot.get_application_context(interaction)
-        await ctx.defer()
-        await self.refresh_callback(
-            loop_input=self.loop_input,
-        )
-
-    @discord.ui.button(label="Lerp It")
-    async def lerp(self, button, interaction):
-        await interaction.response.send_modal(
-            LerpModal(
-                title="Lerp It",
-                bot=self.bot,
-                refresh_callback=self.refresh_callback,
-                loop_input=self.loop_input,
-            )
-        )
-
-    @discord.ui.button(emoji="🔥", style=discord.ButtonStyle.red)
-    async def burn(self, button, interaction):
-        await self.feedback("burn", interaction)
-
-    @discord.ui.button(label="🙌", style=discord.ButtonStyle.green)
-    async def praise(self, button, interaction):
-        await self.feedback("praise", interaction)
-        self.stop()
-
-
-class EdenCog(commands.Cog):
+class KojiiCog(commands.Cog):
     def __init__(self, bot: commands.bot) -> None:
         self.bot = bot
         self.eden_credentials = SignInCredentials(
@@ -187,7 +92,7 @@ class EdenCog(commands.Cog):
         #     default=False,
         # ),
     ):
-        print("Received create:", text_input)
+        print("Received create for Kojii:", text_input)
 
         if not self.perm_check(ctx):
             await ctx.respond("This command is not available in this channel.")
@@ -215,6 +120,10 @@ class EdenCog(commands.Cog):
             upscale_f=upscale_f,
             seed=random.randint(1, 1e8),
         )
+
+        if "kojii" in text_input.lower():
+            config.lora = '6509d065762edacfc4f060fb'
+            config.lora_scale = 0.8
 
         start_bot_message = f"**{text_input}** - <@!{ctx.author.id}>\n"
         await ctx.respond("Starting to create...")
@@ -265,6 +174,9 @@ class EdenCog(commands.Cog):
             seed=random.randint(1, 1e8)
         )
 
+        config.lora = '6509d065762edacfc4f060fb'
+        config.lora_scale = 0.8
+
         start_bot_message = f"**Remix** by <@!{ctx.author.id}>\n"
         await ctx.respond("Remixing...")
         message = await ctx.channel.send(start_bot_message)
@@ -307,7 +219,7 @@ class EdenCog(commands.Cog):
         interpolation_seeds = [
             random.randint(1, 1e8) for _ in interpolation_init_images
         ]
-        n_frames = 50
+        n_frames = 60
         steps = 40
         width, height = 768, 768
 
@@ -320,16 +232,19 @@ class EdenCog(commands.Cog):
             interpolation_init_images=interpolation_init_images,
             interpolation_init_images_use_img2txt=True,
             n_frames=n_frames,
-            loop=True,
+            loop=False,
             smooth=True,
             n_film=1,
             width=width,
             height=height,
             steps=steps,
-            guidance_scale=6.5,
+            guidance_scale=7.5,
             seed=random.randint(1, 1e8),
             interpolation_init_images_min_strength = 0.3,  # a higher value will make the video smoother, but allows less visual change / journey
         )
+
+        config.lora = '6509d065762edacfc4f060fb'
+        config.lora_scale = 0.8
 
         start_bot_message = f"**Real2Real** by <@!{ctx.author.id}>\n"
         await ctx.respond("Lerping...")
@@ -382,7 +297,7 @@ class EdenCog(commands.Cog):
 
         interpolation_texts = [text_input1, text_input2]
         interpolation_seeds = [random.randint(1, 1e8) for _ in interpolation_texts]
-        n_frames = 50
+        n_frames = 80
         steps = 40
         width, height, upscale_f = self.get_video_dimensions(aspect_ratio, False)
 
@@ -395,7 +310,7 @@ class EdenCog(commands.Cog):
             interpolation_seeds=interpolation_seeds,
             n_frames=n_frames,
             smooth=True,
-            loop=True,
+            loop=False,
             n_film=1,
             width=width,
             height=height,
@@ -404,6 +319,10 @@ class EdenCog(commands.Cog):
             guidance_scale=7.5,
             seed=random.randint(1, 1e8),
         )
+
+        if "kojii" in interpolation_texts[0].lower() or "kojii" in interpolation_texts[1].lower():
+            config.lora = '6509d065762edacfc4f060fb'
+            config.lora_scale = 0.8
 
         start_bot_message = (
             f"**{text_input1}** to **{text_input2}** - <@!{ctx.author.id}>\n"
@@ -458,12 +377,6 @@ class EdenCog(commands.Cog):
                     file, output_url = await get_file_update(
                         result, is_video_request, prefer_gif
                     )
-                    view = CreationActionButtons(
-                        bot=self.bot,
-                        output_url=output_url,
-                        loop_input=loop_input,
-                        refresh_callback=self.refresh_callback,
-                    )
                     if parent_message:
                         new_message = await parent_message.reply(
                             start_bot_message,
@@ -476,7 +389,7 @@ class EdenCog(commands.Cog):
                             files=[file],
                             view=None,
                         )
-                    view.loop_input.parent_message = new_message
+                    #view.loop_input.parent_message = new_message
                     await message.delete()
                     return
                 await asyncio.sleep(refresh_interval)
@@ -517,7 +430,7 @@ class EdenCog(commands.Cog):
 
         except Exception as e:
             print(f"Error: {e}")
-            await message.reply(":) ")
+            await message.reply(":)")
 
     def message_preprocessor(self, message: discord.Message) -> str:
         message_content = replace_bot_mention(message.content, only_first=True)
@@ -600,10 +513,10 @@ class EdenCog(commands.Cog):
     ) -> discord.Message:
         if message_update is not None:
             message_content = f"{start_bot_message}\n{message_update}"
-            await message.edit(content=message_content)            
+            await message.edit(content=message_content)
         if file_update:
             await message.edit(files=[file_update], attachments=[])
 
 
 def setup(bot: commands.Bot) -> None:
-    bot.add_cog(EdenCog(bot))
+    bot.add_cog(KojiiCog(bot))
