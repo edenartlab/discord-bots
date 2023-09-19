@@ -203,7 +203,7 @@ class EdenCog(commands.Cog):
         source = self.get_source(ctx)
         large, fast = False, False
         width, height, upscale_f = self.get_dimensions(aspect_ratio, large, img_mode = True)
-        steps = 40 if fast else 60
+        steps = 35 if fast else 60
 
         config = StableDiffusionConfig(
             generator_name="create",
