@@ -123,7 +123,7 @@ class BannyCog(commands.Cog):
 
         if "banny" in text_input.lower():
             config.lora = '6509cd50762edacfc4ef8434'
-            config.lora_scale = 0.8
+            config.lora_scale = 0.65
 
         start_bot_message = f"**{text_input}** - <@!{ctx.author.id}>\n"
         await ctx.respond("Starting to create...")
@@ -175,7 +175,7 @@ class BannyCog(commands.Cog):
         )
 
         config.lora = '6509cd50762edacfc4ef8434'
-        config.lora_scale = 0.8
+        config.lora_scale = 0.65
 
         start_bot_message = f"**Remix** by <@!{ctx.author.id}>\n"
         await ctx.respond("Remixing...")
@@ -244,7 +244,7 @@ class BannyCog(commands.Cog):
         )
 
         config.lora = '6509cd50762edacfc4ef8434'
-        config.lora_scale = 0.8
+        config.lora_scale = 0.65
 
         start_bot_message = f"**Real2Real** by <@!{ctx.author.id}>\n"
         await ctx.respond("Lerping...")
@@ -322,7 +322,7 @@ class BannyCog(commands.Cog):
 
         if "banny" in interpolation_texts[0].lower() or "banny" in interpolation_texts[1].lower():
             config.lora = '6509cd50762edacfc4ef8434'
-            config.lora_scale = 0.8
+            config.lora_scale = 0.65
 
         start_bot_message = (
             f"**{text_input1}** to **{text_input2}** - <@!{ctx.author.id}>\n"

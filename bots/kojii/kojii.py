@@ -123,7 +123,7 @@ class KojiiCog(commands.Cog):
 
         if "kojii" in text_input.lower():
             config.lora = '6509d065762edacfc4f060fb'
-            config.lora_scale = 0.8
+            config.lora_scale = 0.65
 
         start_bot_message = f"**{text_input}** - <@!{ctx.author.id}>\n"
         await ctx.respond("Starting to create...")
@@ -175,7 +175,7 @@ class KojiiCog(commands.Cog):
         )
 
         config.lora = '6509d065762edacfc4f060fb'
-        config.lora_scale = 0.8
+        config.lora_scale = 0.65
 
         start_bot_message = f"**Remix** by <@!{ctx.author.id}>\n"
         await ctx.respond("Remixing...")
@@ -244,7 +244,7 @@ class KojiiCog(commands.Cog):
         )
 
         config.lora = '6509d065762edacfc4f060fb'
-        config.lora_scale = 0.8
+        config.lora_scale = 0.65
 
         start_bot_message = f"**Real2Real** by <@!{ctx.author.id}>\n"
         await ctx.respond("Lerping...")
@@ -322,7 +322,7 @@ class KojiiCog(commands.Cog):
 
         if "kojii" in interpolation_texts[0].lower() or "kojii" in interpolation_texts[1].lower():
             config.lora = '6509d065762edacfc4f060fb'
-            config.lora_scale = 0.8
+            config.lora_scale = 0.65
 
         start_bot_message = (
             f"**{text_input1}** to **{text_input2}** - <@!{ctx.author.id}>\n"
