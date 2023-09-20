@@ -15,6 +15,7 @@ config_dict = {
             channels.GENEKOGAN_GUILD_ID,
             channels.ABRAHAM_BOTDEV_GUILD_ID,
             channels.ABRAHAM_GUILD_ID,
+            channels.KOJII_INTERNAL_GUILD_ID,
         ],
         "allowed_channels": [
             channels.GENE_GENERAL,
@@ -22,27 +23,21 @@ config_dict = {
             channels.ABRAHAM_BOTDEV_GENERAL,
             channels.ABRAHAM_EDEN,
             channels.ABRAHAM_CORE_EDEN,
+            channels.KOJII_INTERNAL_CHARACTERBRANDWIP
         ],
     },
     "prod": {
         "guilds": [
             channels.GENEKOGAN_GUILD_ID,
-            channels.MARS_COLLEGE_GUILD_ID,
             channels.ABRAHAM_GUILD_ID,
-            channels.BRAINDROPS_GUILD_ID,
-            channels.DEADAVATARS_GUILD_ID,
-            channels.VIRTUALBEINGS_GUILD_ID,
+            channels.KOJII_INTERNAL_GUILD_ID,
         ],
         "allowed_channels": [
             channels.GENE_GENERAL,
-            channels.MARS_2023_EDEN,
-            channels.MARS_AI,
             channels.ABRAHAM_DEVS_BOTS,
             channels.ABRAHAM_EDEN,
             channels.ABRAHAM_CORE_EDEN,
-            channels.BRAINDROPS_STABLEDIFFUSION,
-            channels.DEADAVATARS_GARDENOFEDEN,
-            channels.VIRTUALBEINGS_EDEN,
+            channels.KOJII_INTERNAL_CHARACTERBRANDWIP
         ],
     },
 }
