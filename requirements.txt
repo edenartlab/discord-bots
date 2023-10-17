@@ -13,3 +13,4 @@ watchdog==2.1.9; python_version >= "3.6"
 
 git+https://github.com/abraham-ai/marsbots-core.git
 git+https://github.com/abraham-ai/marsbots-eden.git
+git+https://github.com/edenartlab/logos.git

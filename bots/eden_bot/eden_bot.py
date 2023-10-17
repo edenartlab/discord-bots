@@ -27,6 +27,22 @@ from . import config
 from . import settings
 
 
+
+
+# experimental
+
+from logos.scenarios import QAChat
+from logos.sample_data.docs import get_sample_docs
+
+docs = get_sample_docs()
+print(docs)
+qa = QAChat(docs)
+print("QA")
+print(qa)
+
+
+
+
 EDEN_API_URL = "https://api.eden.art" # os.getenv("EDEN_API_URL")
 EDEN_API_KEY = os.getenv("EDEN_API_KEY")
 EDEN_API_SECRET = os.getenv("EDEN_API_SECRET")
@@ -506,13 +522,13 @@ class EdenCog(commands.Cog):
             ):
                 return
 
-            trigger_reply = False # is_mentioned(message, self.bot.user) and message.attachments
+            trigger_reply = is_mentioned(message, self.bot.user)
 
             if trigger_reply:
                 ctx = await self.bot.get_context(message)
                 async with ctx.channel.typing():
                     prompt = self.message_preprocessor(message)
-                    response = ":)"
+                    response = await qa.query(prompt)
                     await message.reply(response)
 
         except Exception as e:
