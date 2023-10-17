@@ -26,23 +26,6 @@ from marsbots_eden.models import StableDiffusionConfig
 from . import config
 from . import settings
 
-
-
-
-# experimental
-
-from logos.scenarios import QAChat
-from logos.sample_data.docs import get_sample_docs
-
-docs = get_sample_docs()
-print(docs)
-qa = QAChat(docs)
-print("QA")
-print(qa)
-
-
-
-
 EDEN_API_URL = "https://api.eden.art" # os.getenv("EDEN_API_URL")
 EDEN_API_KEY = os.getenv("EDEN_API_KEY")
 EDEN_API_SECRET = os.getenv("EDEN_API_SECRET")
@@ -51,6 +34,14 @@ CONFIG = config.config_dict[config.stage]
 ALLOWED_GUILDS = CONFIG["guilds"]
 ALLOWED_CHANNELS = CONFIG["allowed_channels"]
 ALLOWED_LERP_BACKDOOR_USERS = CONFIG["allowed_channels"]
+
+
+# experimental
+from logos.scenarios import QAChat
+from logos.sample_data.docs import get_sample_docs
+os.environ['OPENAI_API_KEY'] = os.environ['LM_OPENAI_API_KEY']
+docs = get_sample_docs()
+qa = QAChat(docs)
 
 
 @dataclass
