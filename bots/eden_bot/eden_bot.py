@@ -41,7 +41,10 @@ from logos.scenarios import QAChat
 from logos.sample_data.docs import get_sample_docs
 os.environ['OPENAI_API_KEY'] = os.environ['LM_OPENAI_API_KEY']
 docs = get_sample_docs()
+print("DOCS")
+print(docs)
 qa = QAChat(docs)
+print(qa)
 
 
 @dataclass
