@@ -37,14 +37,9 @@ ALLOWED_LERP_BACKDOOR_USERS = CONFIG["allowed_channels"]
 
 
 # experimental
-from logos.scenarios import QAChat
-from logos.sample_data.docs import get_sample_docs
 os.environ['OPENAI_API_KEY'] = os.environ['LM_OPENAI_API_KEY']
-docs = get_sample_docs()
-print("DOCS")
-print(docs)
-qa = QAChat(docs)
-print(qa)
+from logos.scenarios import EdenAssistant
+
 
 
 @dataclass
@@ -168,6 +163,7 @@ class EdenCog(commands.Cog):
             frequency_penalty=settings.GPT3_FREQUENCY_PENALTY,
             presence_penalty=settings.GPT3_PRESENCE_PENALTY,
         )
+        self.assistant = EdenAssistant("gpt-4")
 
     @commands.slash_command(guild_ids=ALLOWED_GUILDS)
     async def create(
@@ -522,8 +518,63 @@ class EdenCog(commands.Cog):
                 ctx = await self.bot.get_context(message)
                 async with ctx.channel.typing():
                     prompt = self.message_preprocessor(message)
-                    response = await qa.query(prompt)
-                    await message.reply(response)
+                    
+                    attachment_urls = [attachment.url for attachment in message.attachments]
+                    attachment_lookup_file = {url: f"/files/image{i+1}.jpeg" for i, url in enumerate(attachment_urls)}
+                    attachment_lookup_url = {v: k for k, v in attachment_lookup_file.items()}
+                    attachment_files = [attachment_lookup_file[url] for url in attachment_urls]
+      
+                    response = await self.assistant({
+                        "prompt": prompt,
+                        "attachments" : attachment_files
+                    })
+                    
+                    reply = response["message"]
+                    await message.reply(reply)
+
+                    # check if there is a config
+                    config = response["attachment"]
+                    if not config:
+                        return
+
+                    mode = config.pop("generator")
+
+                    if 'text_input' in config:
+                        text_input = config['text_input']
+                    elif 'interpolation_texts' in config:
+                        text_input = " to ".join(config['interpolation_texts'])
+                    else:
+                        text_input = mode
+
+                    if 'init_image_data' in config:
+                        config['init_image_data'] = attachment_lookup_url[config['init_image_data']]
+                    if 'interpolation_init_images' in config:
+                        config['interpolation_init_images'] = [
+                            attachment_lookup_url[img] for img in config['interpolation_init_images']
+                        ]
+
+                    config = StableDiffusionConfig(
+                        generator_name=mode,
+                        seed=random.randint(1, 1e8),
+                        **config
+                    )
+                    
+                    start_bot_message = f"**{text_input}** - author\n"
+                    creation_message = await ctx.channel.send(start_bot_message)
+                    source = self.get_source(ctx)
+
+                    is_video_request = mode in ["interpolate", "real2real"]
+                    
+                    generation_loop_input = GenerationLoopInput(
+                        api_url=EDEN_API_URL,
+                        message=creation_message,
+                        start_bot_message=start_bot_message,
+                        source=source,
+                        config=config,
+                        prefer_gif=False,
+                        is_video_request=is_video_request
+                    )
+                    await self.generation_loop(generation_loop_input)
 
         except Exception as e:
             print(f"Error: {e}")
