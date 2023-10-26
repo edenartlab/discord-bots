@@ -35,11 +35,9 @@ ALLOWED_GUILDS = CONFIG["guilds"]
 ALLOWED_CHANNELS = CONFIG["allowed_channels"]
 ALLOWED_LERP_BACKDOOR_USERS = CONFIG["allowed_channels"]
 
-
 # experimental
 os.environ['OPENAI_API_KEY'] = os.environ['LM_OPENAI_API_KEY']
 from logos.scenarios import EdenAssistant
-
 
 
 @dataclass
@@ -524,13 +522,18 @@ class EdenCog(commands.Cog):
                     attachment_lookup_url = {v: k for k, v in attachment_lookup_file.items()}
                     attachment_files = [attachment_lookup_file[url] for url in attachment_urls]
       
-                    response = await self.assistant({
+                    assistant_message = {
                         "prompt": prompt,
                         "attachments" : attachment_files
-                    })
+                    }
+
+                    response = await self.assistant(
+                        assistant_message, 
+                        session_id=str(message.author.id)
+                    )
                     
-                    reply = response["message"]
-                    await message.reply(reply)
+                    reply = response["message"][:2000]
+                    reply_message = await message.reply(reply)
 
                     # check if there is a config
                     config = response["attachment"]
@@ -559,16 +562,17 @@ class EdenCog(commands.Cog):
                         **config
                     )
                     
-                    start_bot_message = f"**{text_input}** - author\n"
-                    creation_message = await ctx.channel.send(start_bot_message)
                     source = self.get_source(ctx)
 
                     is_video_request = mode in ["interpolate", "real2real"]
                     
+                    start_bot_message = f"**{text_input}** - <@!{ctx.author.id}>\n"
+                    original_text = f"{reply[0:1950-len(start_bot_message)]}\n\n{start_bot_message}"
+                    
                     generation_loop_input = GenerationLoopInput(
                         api_url=EDEN_API_URL,
-                        message=creation_message,
-                        start_bot_message=start_bot_message,
+                        message=reply_message,
+                        start_bot_message=original_text,
                         source=source,
                         config=config,
                         prefer_gif=False,
