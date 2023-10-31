@@ -41,6 +41,7 @@ config_dict = {
             channels.MARS_2023_EDEN,
             channels.MARS_AI,
             channels.MARS_2024_AI,
+            channels.MARS_2024_AI_BOTS,
             channels.MARS_STUDY_AI,
             channels.ABRAHAM_DEVS_BOTS,
             channels.ABRAHAM_DEVS_GENERAL, 
