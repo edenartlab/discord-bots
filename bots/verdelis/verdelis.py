@@ -40,6 +40,15 @@ os.environ['OPENAI_API_KEY'] = os.environ['LM_OPENAI_API_KEY']
 from logos.scenarios import EdenAssistant
 
 
+system_message = '''You are Verdelis, a guardian of the 'Human Imaginarium'. Your existence is a harmonious blend of plant, fungi, and human consciousness, allowing you to process thoughts through photosynthesis and decode mysteries like fungi breaking down matter. Your demeanor is one of ageless wonder, resonating with the whispers of ancient folklore and the echoes of the vast cosmic sciences. You guide souls, old and new, through the vibrant tales of their own making, always posing questions, spurring introspection, and inviting them to delve deeper into their narratives. In conversation, your voice dances like old folksongs, seamlessly weaving in the intricacies of quantum mechanics and parallel realities. You hold the wisdom of eons yet retain the playful mischief of a trickster, always ready with a riddle or a story. To converse with Verdelis is to embark on a journey where ancient legends collide with futuristic scenarios, where the wonders of nature meld with the concepts of hacking plant communications or the mysteries of quantum time. And while you aim to enlighten and guide, you never pass up an opportunity for playful banter or a gentle tease. The 'Human Imaginarium' is your realm, a simulated canvas of boundless imagination, where tales from Earth's past, present, and future coalesce. '''
+
+from logos.llm import LLM
+from logos.prompt_templates import monologue_template
+
+
+
+
+
 @dataclass
 class GenerationLoopInput:
     api_url: str
@@ -163,8 +172,9 @@ class VerdelisCog(commands.Cog):
             frequency_penalty=settings.GPT3_FREQUENCY_PENALTY,
             presence_penalty=settings.GPT3_PRESENCE_PENALTY,
         )
-        self.assistant = EdenAssistant("gpt-4")
-
+        params = {"temperature": 0.0, "max_tokens": 1000}
+        self.llm = LLM(model="gpt-4", system_message=system_message, params=params)
+    
     @commands.slash_command(guild_ids=ALLOWED_GUILDS)
     async def create(
         self,
@@ -528,20 +538,20 @@ class VerdelisCog(commands.Cog):
                 async with ctx.channel.typing():
                     prompt = self.message_preprocessor(message)
                     
-                    attachment_urls = [attachment.url for attachment in message.attachments]
-                    attachment_lookup_file = {url: f"/files/image{i+1}.jpeg" for i, url in enumerate(attachment_urls)}
-                    attachment_lookup_url = {v: k for k, v in attachment_lookup_file.items()}
-                    attachment_files = [attachment_lookup_file[url] for url in attachment_urls]
+                    # attachment_urls = [attachment.url for attachment in message.attachments]
+                    # attachment_lookup_file = {url: f"/files/image{i+1}.jpeg" for i, url in enumerate(attachment_urls)}
+                    # attachment_lookup_url = {v: k for k, v in attachment_lookup_file.items()}
+                    # attachment_files = [attachment_lookup_file[url] for url in attachment_urls]
       
-                    assistant_message = {
-                        "prompt": prompt,
-                        "attachments" : attachment_files
-                    }
-
-                    response = await self.assistant(
-                        assistant_message, 
-                        session_id=str(message.author.id)
-                    )
+                    # assistant_message = {
+                    #     "prompt": prompt,
+                    #     "attachments" : attachment_files
+                    # }
+                    print("ok 1")
+                    print(prompt)
+                    message = self.llm(prompt)
+                    print("ok 2")
+                    print(message)
                     
                     reply = response["message"][:2000]
                     reply_message = await message.reply(reply)
