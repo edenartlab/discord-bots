@@ -549,7 +549,7 @@ class VerdelisCog(commands.Cog):
                         "attachments" : attachment_files
                     }
 
-                    response = await self.assistant(
+                    response = self.assistant(
                         assistant_message, 
                         session_id=str(message.author.id)
                     )
