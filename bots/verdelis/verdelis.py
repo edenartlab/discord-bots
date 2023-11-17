@@ -581,6 +581,8 @@ class VerdelisCog(commands.Cog):
                     config = StableDiffusionConfig(
                         generator_name=mode,
                         seed=random.randint(1, 1e8),
+                        lora=lora_id,
+                        lora_scale=0.9,
                         **config
                     )
                     
