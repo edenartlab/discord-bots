@@ -549,15 +549,15 @@ class VerdelisCog(commands.Cog):
                     # }
                     print("ok 1")
                     print(prompt)
-                    message = self.llm(prompt)
+                    response = self.llm(prompt)
                     print("ok 2")
-                    print(message)
+                    print(response)
                     
-                    reply = response["message"][:2000]
+                    reply = response[:2000]
                     reply_message = await message.reply(reply)
 
                     # check if there is a config
-                    config = response["attachment"]
+                    config = None #response["attachment"]
                     if not config:
                         return
 
