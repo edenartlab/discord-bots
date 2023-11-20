@@ -38,6 +38,14 @@ ALLOWED_LERP_BACKDOOR_USERS = CONFIG["allowed_channels"]
 # experimental
 os.environ['OPENAI_API_KEY'] = os.environ['LM_OPENAI_API_KEY']
 from logos.scenarios import EdenAssistant
+from logos.sample_data import eden
+
+character_description = eden.get_character_description()
+creator_prompt = eden.get_creator_prompt()
+documentation_prompt = eden.get_documentation_prompt()
+documentation = eden.get_documentation()
+router_prompt = eden.get_router_prompt()
+
 
 
 @dataclass
@@ -161,7 +169,13 @@ class EdenCog(commands.Cog):
             frequency_penalty=settings.GPT3_FREQUENCY_PENALTY,
             presence_penalty=settings.GPT3_PRESENCE_PENALTY,
         )
-        self.assistant = EdenAssistant("gpt-4")
+        self.assistant = EdenAssistant(
+            character_description, 
+            creator_prompt, 
+            documentation_prompt, 
+            documentation,
+            router_prompt
+        )
 
     @commands.slash_command(guild_ids=ALLOWED_GUILDS)
     async def create(
@@ -527,11 +541,11 @@ class EdenCog(commands.Cog):
                         "attachments" : attachment_files
                     }
 
-                    response = await self.assistant(
+                    response = self.assistant(
                         assistant_message, 
                         session_id=str(message.author.id)
                     )
-                    
+                    print(response)
                     reply = response["message"][:2000]
                     reply_message = await message.reply(reply)
 
