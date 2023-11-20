@@ -541,12 +541,18 @@ class EdenCog(commands.Cog):
                         "attachments" : attachment_files
                     }
 
+                    print("ATTACH FILES")
+                    print(assistant_message)
+                    print(str(message.author.id))
+
                     response = self.assistant(
                         assistant_message, 
                         session_id=str(message.author.id)
                     )
                     print(response)
                     reply = response["message"][:2000]
+                    print(reply)
+                    print("=====")
                     reply_message = await message.reply(reply)
 
                     # check if there is a config
